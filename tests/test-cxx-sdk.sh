@@ -34,6 +34,54 @@ if [ ! -f "$TMP_DIR_SRC/src/hello.cpp" ]; then
     exit 1
 fi
 
+# Verify Claude Code configuration exists
+if [ ! -L "$TMP_DIR_SRC/.claude" ]; then
+    echo "Error: .claude symlink not found!"
+    exit 1
+fi
+
+if [ ! -d "$TMP_DIR_SRC/claude" ]; then
+    echo "Error: claude/ directory not found!"
+    exit 1
+fi
+
+if [ ! -f "$TMP_DIR_SRC/CLAUDE.md" ]; then
+    echo "Error: CLAUDE.md not found!"
+    exit 1
+fi
+
+if [ ! -f "$TMP_DIR_SRC/docs/git-msg-tags.md" ]; then
+    echo "Error: docs/git-msg-tags.md not found!"
+    exit 1
+fi
+
+if [ ! -f "$TMP_DIR_SRC/claude/settings.json" ]; then
+    echo "Error: claude/settings.json not found!"
+    exit 1
+fi
+
+if [ ! -d "$TMP_DIR_SRC/claude/skills/git-commit" ]; then
+    echo "Error: claude/skills/git-commit/ not found!"
+    exit 1
+fi
+
+if [ ! -d "$TMP_DIR_SRC/claude/skills/open-issue" ]; then
+    echo "Error: claude/skills/open-issue/ not found!"
+    exit 1
+fi
+
+# Verify C++-specific tag in git-msg-tags.md
+if ! grep -q "build.*CMakeLists" "$TMP_DIR_SRC/docs/git-msg-tags.md"; then
+    echo "Error: C++-specific 'build' tag not found in git-msg-tags.md!"
+    exit 1
+fi
+
+# Verify Python deps tag was removed
+if grep -q "deps.*Python" "$TMP_DIR_SRC/docs/git-msg-tags.md"; then
+    echo "Error: Python-specific 'deps' tag should not be in C++ git-msg-tags.md!"
+    exit 1
+fi
+
 echo "Building C++ SDK with src/..."
 make -C "$TMP_DIR_SRC" build
 
@@ -75,6 +123,32 @@ fi
 # Verify CMakeLists.txt references lib/ instead of src/
 if grep -q "src/hello.cpp" "$TMP_DIR_LIB/CMakeLists.txt"; then
     echo "Error: CMakeLists.txt still references src/ instead of lib/!"
+    exit 1
+fi
+
+# Verify Claude Code configuration exists
+if [ ! -L "$TMP_DIR_LIB/.claude" ]; then
+    echo "Error: .claude symlink not found!"
+    exit 1
+fi
+
+if [ ! -d "$TMP_DIR_LIB/claude" ]; then
+    echo "Error: claude/ directory not found!"
+    exit 1
+fi
+
+if [ ! -f "$TMP_DIR_LIB/CLAUDE.md" ]; then
+    echo "Error: CLAUDE.md not found!"
+    exit 1
+fi
+
+if [ ! -f "$TMP_DIR_LIB/docs/git-msg-tags.md" ]; then
+    echo "Error: docs/git-msg-tags.md not found!"
+    exit 1
+fi
+
+if [ ! -f "$TMP_DIR_LIB/claude/settings.json" ]; then
+    echo "Error: claude/settings.json not found!"
     exit 1
 fi
 

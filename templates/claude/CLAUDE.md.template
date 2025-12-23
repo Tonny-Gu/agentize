@@ -1,0 +1,5 @@
+- To test the project, `make test`.
+- DO NOT use `cd` anywhere!
+  - Use relative paths to this project root only!
+  - `cd` permission is disabled for this CLI.
+- `README.md` in each folder shall describe the folder purpose and organization.

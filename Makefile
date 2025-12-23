@@ -38,6 +38,15 @@ agentize:
 		echo "Initializing SDK structure..."; \
 		mkdir -p "$(AGENTIZE_PROJECT_PATH)"; \
 		cp -r templates/$(AGENTIZE_PROJECT_LANG)/* "$(AGENTIZE_PROJECT_PATH)/"; \
+		echo "Copying Claude Code configuration..."; \
+		cp -r claude "$(AGENTIZE_PROJECT_PATH)/"; \
+		ln -s ./claude "$(AGENTIZE_PROJECT_PATH)/.claude"; \
+		if [ -f "templates/claude/CLAUDE.md.template" ]; then \
+			sed -e "s/{{PROJECT_NAME}}/$(AGENTIZE_PROJECT_NAME)/g" \
+			    -e "s/{{PROJECT_LANG}}/$(AGENTIZE_PROJECT_LANG)/g" \
+			    templates/claude/CLAUDE.md.template > "$(AGENTIZE_PROJECT_PATH)/CLAUDE.md"; \
+		fi; \
+		cp -r templates/claude/docs "$(AGENTIZE_PROJECT_PATH)/"; \
 		if [ -f "$(AGENTIZE_PROJECT_PATH)/bootstrap.sh" ]; then \
 			echo "Running bootstrap script..."; \
 			chmod +x "$(AGENTIZE_PROJECT_PATH)/bootstrap.sh"; \
@@ -54,6 +63,17 @@ agentize:
 			echo "Error: Project path does not exist. Use AGENTIZE_MODE=init to create it."; \
 			exit 1; \
 		fi; \
+		echo "Updating Claude Code configuration..."; \
+		if [ -d "$(AGENTIZE_PROJECT_PATH)/claude" ]; then \
+			echo "  Backing up existing claude/ to claude.backup/"; \
+			cp -r "$(AGENTIZE_PROJECT_PATH)/claude" "$(AGENTIZE_PROJECT_PATH)/claude.backup"; \
+		fi; \
+		cp -r claude/* "$(AGENTIZE_PROJECT_PATH)/claude/"; \
+		if [ ! -L "$(AGENTIZE_PROJECT_PATH)/.claude" ]; then \
+			ln -s ./claude "$(AGENTIZE_PROJECT_PATH)/.claude"; \
+		fi; \
+		echo "  Updated claude/settings.json, commands, skills, and hooks"; \
+		echo "  Existing CLAUDE.md and docs/git-msg-tags.md were preserved"; \
 		echo "SDK updated successfully at $(AGENTIZE_PROJECT_PATH)"; \
 	else \
 		echo "Error: Invalid mode '$$MODE'. Supported modes: init, update"; \

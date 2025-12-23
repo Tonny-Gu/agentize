@@ -40,6 +40,54 @@ if [ -f "$TMP_DIR/bootstrap.sh" ]; then
     exit 1
 fi
 
+# Verify Claude Code configuration exists
+if [ ! -L "$TMP_DIR/.claude" ]; then
+    echo "Error: .claude symlink not found!"
+    exit 1
+fi
+
+if [ ! -d "$TMP_DIR/claude" ]; then
+    echo "Error: claude/ directory not found!"
+    exit 1
+fi
+
+if [ ! -f "$TMP_DIR/CLAUDE.md" ]; then
+    echo "Error: CLAUDE.md not found!"
+    exit 1
+fi
+
+if [ ! -f "$TMP_DIR/docs/git-msg-tags.md" ]; then
+    echo "Error: docs/git-msg-tags.md not found!"
+    exit 1
+fi
+
+if [ ! -f "$TMP_DIR/claude/settings.json" ]; then
+    echo "Error: claude/settings.json not found!"
+    exit 1
+fi
+
+if [ ! -d "$TMP_DIR/claude/skills/git-commit" ]; then
+    echo "Error: claude/skills/git-commit/ not found!"
+    exit 1
+fi
+
+if [ ! -d "$TMP_DIR/claude/skills/open-issue" ]; then
+    echo "Error: claude/skills/open-issue/ not found!"
+    exit 1
+fi
+
+# Verify Python-specific tag in git-msg-tags.md
+if ! grep -q "deps.*Python dependency" "$TMP_DIR/docs/git-msg-tags.md"; then
+    echo "Error: Python-specific 'deps' tag not found in git-msg-tags.md!"
+    exit 1
+fi
+
+# Verify C/C++ build tag was removed
+if grep -q "build.*CMakeLists" "$TMP_DIR/docs/git-msg-tags.md"; then
+    echo "Error: C/C++-specific 'build' tag should not be in Python git-msg-tags.md!"
+    exit 1
+fi
+
 # Verify test file was updated to use correct module name
 if grep -q "import project_name" "$TMP_DIR/tests/test_main.py"; then
     echo "Error: tests/test_main.py still references 'project_name' instead of 'test_python_sdk'!"

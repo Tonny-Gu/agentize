@@ -32,6 +32,17 @@ if [ "$SOURCE_PATH" != "src" ]; then
     fi
 fi
 
+# Parameterize git-msg-tags.md if it's a template
+if [ -f "docs/git-msg-tags.md.template" ]; then
+    echo "  Parameterizing docs/git-msg-tags.md..."
+    sed -e "s/{{PROJECT_NAME}}/$PROJECT_NAME/g" \
+        -e "/{{#if_c_or_cxx}}/d" \
+        -e "/{{\/if_c_or_cxx}}/d" \
+        -e "/{{#if_python}}/,/{{\/if_python}}/d" \
+        docs/git-msg-tags.md.template > docs/git-msg-tags.md
+    rm docs/git-msg-tags.md.template
+fi
+
 echo "Bootstrap completed successfully!"
 
 # Delete this bootstrap script using AGENTIZE_PROJECT_PATH
