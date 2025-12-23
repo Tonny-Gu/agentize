@@ -1,4 +1,5 @@
-- To test the project, `make test`.
+- To test whole the project, run `make test`
+  - To test a specific module, look at all `*.sh` files in the `tests/` folder.
 - DO NOT use `cd` anywhere!
   - Use relative paths to this project root only!
   - `cd` permission is disabled for this CLI.

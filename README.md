@@ -32,7 +32,10 @@ For more details of the variables and options available, refer to our
 
 ```plaintext
 agentize/
-├── docs/                   # Document, currently we only have option usage
+├── docs/                   # Document
+|   ├── draft/              # Draft documents for local development
+|   ├── OPTIONS.md          # Document for make options
+|   └── git-msg-tags.md     # Used by \git-commit skill and command to write meaningful commit messages
 ├── templates/              # Templates for SDK generation
 ├── claude/                 # Core agent rules for Claude Code
 ├── tests/                  # Test cases

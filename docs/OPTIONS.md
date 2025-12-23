@@ -18,6 +18,7 @@ Specifies the programming language of your project. Supported values include:
 - `cxx` for C++ language
 - `python` for Python language
 
+
 TODO: Add more supported languages, including Java, Rust, Go, JavaScript, etc.
 
 ## AGENTIZE_SOURCE_PATH (optional)
@@ -38,7 +39,16 @@ make agentize \
 
 Supported modes are:
 - `init`: Initializes an SDK structure in the specified project path, and copy necessary template files.
+  - For `init`, if `AGENTIZE_PROJECT_PATH` already exists,
+    it will check if it is an empty directory. If so, it will copy all the SDK template files
+    for the specified language into that directory. If the directory is not empty, it will abort.
+    If the directory does not exist, it will create an empty directory at that path
+    and copy the SDK template files into it.
 - `update`: Only copies or updates the AI-related rules and files in the existing SDK structure.
+  - For `update`, if `AGENTIZE_PROJECT_PATH` does not exist or is not a valid SDK structure,
+    it will abort with an error message. If it exists and is a valid SDK structure,
+    it will copy or update the AI-related rules and files in that directory without affecting
+    users' existing rules.
 
 ## AGENTIZE_CLI (TODO)
 
