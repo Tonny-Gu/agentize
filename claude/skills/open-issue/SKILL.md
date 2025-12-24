@@ -72,23 +72,41 @@ The AI agent must determine which prefix and tag combination to use based on the
 - It's a high-level request without technical implementation details
 - Example: `[feature request]: Add support for custom plugins`
 
+## Inputs
+
+The open-issue skill takes the following inputs:
+
+1. **For [plan] issues**: A complete implementation plan from the `make-a-plan` skill
+   - The plan should include all sections: Goal, Codebase Analysis, Interface Design, Test Strategy, and Implementation Steps
+   - The plan becomes the "Proposed Solution" section of the issue
+
+2. **For other issues**: Context from conversation about bugs, feature requests, or improvements
+   - Issue description and details
+   - Steps to reproduce (for bugs)
+   - General requirements (for feature requests)
+
 ## Workflow for AI Agents
 
 When this skill is invoked, the AI agent **MUST** follow these steps:
 
 ### 1. Context Analysis Phase
 
-Review the entire conversation history to extract issue details:
+Review the conversation to determine issue type and extract details:
+
+**For [plan] issues:**
+- Check if a plan was already created using the `make-a-plan` skill
+- If yes, use that plan directly as the "Proposed Solution"
+- If no, inform the user to run `make-a-plan` first before creating a [plan] issue
+
+**For other issues (bug reports, feature requests, improvements):**
 - Identify the problem/request being discussed
 - Extract key details: what, why, affected modules
-- Determine if this is a bug, feature request, or improvement plan
-- Check if the user has provided implementation steps or solution proposals
+- Determine the specific issue type
 
 Context signals for issue type:
 - Bug report signals: "doesn't work", "error", "crash", "unexpected", "broken"
 - Feature request signals: "add", "new", "would be nice", "enhancement", "support for"
 - Improvement signals: "refactor", "optimize", "clean up", "better way"
-- Plan signals: "let's implement", "step 1:", "we should create", "modify these files"
 
 ### 2. Tag Selection Phase
 
@@ -117,19 +135,20 @@ Build the issue following the format specification:
 - Be specific and actionable
 
 **Proposed Solution section (mandatory for [plan] issues):**
-- **DO NOT** include code audits as a step!
-  Its already a part of planning by listing the specific files to be changed below!
-- **DO NOT** include actual code snippets to save the context length.
-- List specific files to modify, add, or delete
-  - Bad Example: Audit the codebase to find the files to change.
-  - Good Example: Modify `file_a.py:12-34` for X purpose.
-- Provide high-level implementation approach
-  - The files to be changed should be in the order of implementation steps
-- Include the testing strategies for the proposed changes
-  - Including files to add in `tests/` for new features or modifications, and
-    clearly specify which aspect is being tested by each test file.
-  - Bad Example: Add tests to cover the new feature.
-  - Good Example: Modify `tests/test_xxx.py` to test this new features' specific behavior Y.
+
+**For [plan] issues:** Use the complete plan output from the `make-a-plan` skill:
+- Copy the entire plan structure: Goal, Codebase Analysis, Interface Design, Test Strategy, and Implementation Steps
+- The plan from `make-a-plan` already includes all necessary details:
+  - Specific files to modify/create/delete with line ranges
+  - Implementation steps in Design-first TDD order (Docs → Tests → Implementation)
+  - LOC estimates and complexity assessment
+  - Milestone strategy for large features
+- **DO NOT** modify or rewrite the plan - use it as-is from `make-a-plan`
+
+**For other issue types without a formal plan:**
+- Provide a brief description of the proposed approach (if applicable)
+- Keep it high-level for feature requests and improvements
+- Not required for simple bug reports
 
 **Related PR section (when Proposed Solution exists):**
 - Add placeholder text: "TBD - will be updated when PR is created"
@@ -214,27 +233,22 @@ explicitly requested by the user.
 
 ### Example 1: Plan Issue with Feature Tag
 
-**Context:** User wants to add TypeScript SDK template support.
+**Context:** User wants to add a new feature. A plan was created using the `make-a-plan` skill.
 
 **Issue:**
 ```markdown
-# [plan][feat]: Add TypeScript SDK template support
+# [plan][feat]: Add new feature name
 
 ## Description
 
-Add support for generating TypeScript SDK templates in the agentize project.
-This will allow developers to bootstrap TypeScript-based agent SDKs alongside
-the existing Python templates.
+Brief description of what the feature does and why it's needed.
 
 ## Proposed Solution
 
-To implement TypeScript SDK template support:
-1. Create `templates/typescript/` directory structure
-2. Add `templates/typescript/package.json` with default dependencies
-3. Create `templates/typescript/tsconfig.json` with recommended settings
-4. Add `templates/typescript/src/index.ts` as entry point
-5. Update `claude/skills/sdk-init/SKILL.md` to support TypeScript option
-6. Add tests in `tests/test_typescript_template.py`
+[The complete plan output from make-a-plan skill is inserted here]
+
+See the `make-a-plan` skill documentation for detailed examples of plan structure,
+including Goal, Codebase Analysis, Interface Design, Test Strategy, and Implementation Steps.
 
 ## Related PR
 

@@ -23,8 +23,11 @@ For more details of the variables and options available, refer to our
 
 1. Plan first, code later: Use AI to generate a detailed plan before writing any code.
    - Plan is put on Github Issues for tracking.
-2. Build [skills](https://agentskills.io/), do not build agents.
+2. Build [skills](https://agentskills.io/).
    - Skills are modular reusable, formal, and lightweighted flow definitions.
+   - This is something like C-style declaration and implementation separation.
+     - `/commands` are declarations and interfaces for users to invoke skills.
+     - `/skills` are implementations of the skills.
 3. Bootstrapping via self-improvment: We have `.claude` linked to our `claude` rules
    directory. We use these rules to develop these rules further.
    - Top-down design: Start with a high-level view of the development flow.
