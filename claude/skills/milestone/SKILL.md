@@ -371,13 +371,18 @@ Create the file `.milestones/issue-{N}-milestone-{M}.md`:
 [Test Status section from Step 4]
 ```
 
+**IMPORTANT**: This milestone document is for local checkpoint tracking only. It should NOT be committed to git (it's already excluded via `.gitignore`).
+
 ### Step 6: Create Milestone Commit
 
 Use the `commit-msg` skill with milestone flag:
 
+**CRITICAL**: Only commit implementation changes (code, tests, docs), NOT the milestone report file.
+
 **Invoke commit-msg skill with:**
 - Purpose: milestone
-- Staged files: all changes made so far
+- Staged files: all implementation changes (code, tests, documentation)
+  - EXCLUDE: `.milestones/issue-{N}-milestone-{M}.md` (keep this local only)
 - Issue number: {N}
 - Test status: "{passed}/{total} tests passed"
 
@@ -396,6 +401,8 @@ docs/milestone-workflow.md: Add workflow documentation
 
 Milestone progress: 820 LOC implemented, 5/8 tests passed.
 Tests failing: edge case handling, integration tests.
+
+NOTE: Milestone document (.milestones/issue-42-milestone-2.md) is NOT committed - it remains local for resumption.
 ```
 
 ### Step 7: Inform User
@@ -723,3 +730,5 @@ After milestone skill signals completion, user can invoke `/open-pr` to create a
 9. **Trust the process**: The 800 LOC threshold is a guideline based on context window limits and maintainability - don't try to game it
 
 10. **Test status is gold**: Milestone documents exist primarily to track test progress toward completion
+
+11. **Milestone documents are local-only**: Milestone files in `.milestones/` are excluded from git (via `.gitignore`) and should NEVER be committed. They exist only as local checkpoints for resuming work.
