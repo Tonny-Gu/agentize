@@ -7,3 +7,4 @@
 - `README.md` in each folder shall decribe the folder purpose and organization.
   - If not, please create one!
 - Keep in mind, all the rules developed in this project should be as project-neutral as possible.
+- `docs/draft` folder is for user to draft documents locally, any rules committed to git should avoid mentioning any files in this folder!

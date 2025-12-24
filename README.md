@@ -17,7 +17,7 @@ make agentize \
 
 This will create an initial SDK structure in the specified project path.
 For more details of the variables and options available, refer to our
-[usage document](./docs/OPTIONS.md).
+[usage document](./docs/options.md).
 
 ## Core Phylosophy
 
@@ -42,7 +42,8 @@ graph TD
     C[Critique: Review feasibility] --> D
     D[3rd-party reviewer: Synthesize final plan via consensus & conflicts] --> E[User approves/rejects plan]
     E -->|Approved| F[Create Github Issue]
-    E -->|Rejected| A
+    E -->|Refined| A
+    E -->|Abandoned| Z[End]
     F[Open a dev issue] --> G[Code implementation]
 
     style A fill:#ffcccc
@@ -52,6 +53,7 @@ graph TD
     style D fill:#ccddff
     style F fill:#ccddff
     style G fill:#ccddff
+    style Z fill:#dddddd
 ```
 
 `/issue2impl` command flow:
@@ -79,9 +81,15 @@ graph TD
     style I fill:#ccddff
 ```
 
-The light red boxes are user interventions, including providing development
-requirements, approving/rejecting plans, and approving/rejecting code merges.
-The blue boxes are automated steps performed by AI agents.
+**Legend**
+- Red boxes: user interventions, including providing development
+requirements, approving/rejecting results (both intermediate and final),
+and starting new development sessions.
+- Blue boxes: automated steps performed by AI agents/skills/commands.
+
+Refer to [our tutorial](./docs/user-tutorial.md) for a detailed walkthrough of the workflow,
+as well as [our developer guide](./docs/contrib.md) to understand the internal implementations.
+
 
 ## Project Organization
 
