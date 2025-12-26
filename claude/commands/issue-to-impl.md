@@ -61,9 +61,29 @@ If `$ARGUMENTS` provided, use as issue number. Otherwise:
 - Search conversation context for patterns: "issue #42", "implement #15", etc.
 - If unclear, ask user: "Which issue number should I implement?"
 
-### Step 2: Create Development Branch
+### Step 2: Detect Current Branch
 
-**Invoke:** `fork-dev-branch` skill
+**Check current branch:**
+```bash
+git branch --show-current
+```
+
+**Parse branch name:**
+- Extract issue number from pattern `issue-{N}-*` (e.g., `issue-42-add-feature` → 42)
+- Compare extracted number to requested issue number from Step 1
+
+**Decision:**
+- If branch matches `issue-{N}-*` AND extracted N equals requested issue → Skip Step 3 (branch creation)
+- Otherwise → Proceed to Step 3
+
+### Step 3: Create Development Branch
+
+**If Step 2 detected matching branch:**
+- Skip `fork-dev-branch` invocation
+- Output: "Already on issue-{N} branch: {current-branch}"
+- Proceed to Step 4
+
+**Otherwise, invoke:** `fork-dev-branch` skill
 **Input:** Issue number from Step 1
 **Output:** New branch `issue-{N}-{brief-title}`, switched to that branch
 
@@ -76,9 +96,9 @@ If `$ARGUMENTS` provided, use as issue number. Otherwise:
 **Error handling:**
 - Issue not found → Stop, display error to user
 - Issue closed → Warn user, ask for confirmation
-- Already on development branch → Ask user to confirm or switch
+- Branch name mismatch (on issue-M branch, requesting issue N where M ≠ N) → Warn user, ask to confirm or switch
 
-### Step 3: Read Implementation Plan
+### Step 4: Read Implementation Plan
 
 **Fetch issue body:**
 ```bash
@@ -105,7 +125,7 @@ gh issue view {issue-number} --json body --jq '.body'
   ```
   Stop execution.
 
-### Step 4: Update Documentation
+### Step 5: Update Documentation
 
 **Based on plan:** Identify documentation steps (usually Step 1 or Steps 1-N)
 
@@ -116,7 +136,7 @@ gh issue view {issue-number} --json body --jq '.body'
 
 **Track:** Files created/modified for Milestone 1 commit
 
-### Step 5: Create/Update Test Cases
+### Step 6: Create/Update Test Cases
 
 **Based on plan:** Identify test steps (usually Step 2 or Steps N+1-M)
 
@@ -128,7 +148,7 @@ gh issue view {issue-number} --json body --jq '.body'
 
 **Track:** Test files created/modified for Milestone 1 commit
 
-### Step 6: Create Milestone 1
+### Step 7: Create Milestone 1
 
 **Stage files with verification:**
 ```bash
@@ -171,7 +191,7 @@ Milestone 1 created: Documentation and tests complete (0/{total} tests passed)
 Starting automatic implementation loop...
 ```
 
-### Step 7: Automatic Implementation Loop
+### Step 8: Automatic Implementation Loop
 
 **Invoke:** `milestone` skill
 **Input:**
@@ -253,14 +273,30 @@ Wait for user confirmation before proceeding.
 
 ### Already on Development Branch
 
+**Scenario 1: Branch matches requested issue**
 ```bash
 git branch --show-current
-# Output: issue-42-some-feature (not main)
+# Output: issue-42-some-feature
+# Requested issue: 42
+```
+
+**Response:**
+Step 2 detects match. Step 3 skips branch creation and outputs:
+```
+Already on issue-42 branch: issue-42-some-feature
+```
+Continue to Step 4.
+
+**Scenario 2: Branch mismatch (on issue-M, requesting issue-N where M ≠ N)**
+```bash
+git branch --show-current
+# Output: issue-45-other-feature
+# Requested issue: 42
 ```
 
 **Response:**
 ```
-Warning: You're already on development branch: {current-branch}
+Warning: Currently on issue-45 branch, but requested issue 42.
 
 Continue on this branch or switch to main and create new branch?
 ```
