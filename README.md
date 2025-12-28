@@ -19,6 +19,10 @@ lol init --name your_project_name --lang c --path /path/to/your/project
 
 This creates an initial SDK structure in the specified project path. Use `lol --help` to see all available options.
 
+> In case you are curious about why we name the CLI `lol`, it is from a famous saying from Alan
+> Perlis: _When someone says, "I want a programming language in which I need only say what I want done,"
+> give him a `lol`lipop._
+
 ## Core Phylosophy
 
 1. Plan first, code later: Use AI to generate a detailed plan before writing any code.
