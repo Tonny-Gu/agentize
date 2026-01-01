@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+        "Bash(tests/test-all.sh)",
+        "Bash(tests/test-agentize-cli.sh)",
+        "Bash(tests/test-agentize-modes.sh)",
+        "Bash(tests/test-all.sh)",
+        "Bash(tests/test-c-sdk.sh)",
+        "Bash(tests/test-claude-permission-hook.sh)",
+        "Bash(tests/test-cxx-sdk.sh)",
+        "Bash(tests/test-makefile-validation.sh)",
+        "Bash(tests/test-python-sdk.sh)",
+        "Bash(tests/test-wt-cross-project.sh)"
+    ]
+  }
+}
