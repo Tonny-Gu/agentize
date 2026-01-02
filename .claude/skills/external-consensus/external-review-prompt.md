@@ -36,7 +36,13 @@ Below is the combined report containing all three perspectives:
 
 ## Output Requirements
 
-Generate a final implementation plan following this structure:
+Generate a final implementation plan that follows the plan-guideline structure and rules:
+- **Design-first TDD ordering**: Documentation → Tests → Implementation (never invert).
+- **Use LOC estimates only** (no time-based estimates).
+- **Be concrete**: cite exact repo-relative files/sections; avoid vague audit steps.
+- **Include dependencies** for each step so ordering is enforced.
+- **For every step, list correspondence** to documentation and test cases (what it updates, depends on, or satisfies).
+- **If this is a bug fix**, include Bug Reproduction (or explicit skip reason).
 
 ```markdown
 # Implementation Plan: {{FEATURE_NAME}}
@@ -45,69 +51,115 @@ Generate a final implementation plan following this structure:
 
 [2-3 sentences explaining the balanced approach chosen]
 
-## Files Verified
+## Goal
+[1-2 sentence problem statement]
 
-**Documentation and codebase checked by agents:**
+**Success criteria:**
+- [Criterion 1]
+- [Criterion 2]
+
+**Out of scope:**
+- [What we're not doing]
+
+## Bug Reproduction
+*(Optional - include only for bug fixes where reproduction was attempted)*
+
+**Steps tried:**
+- [Command or action performed]
+- [Files examined]
+
+**Observed symptoms:**
+- [Error messages, test failures, unexpected behavior]
+
+**Environment snapshot:**
+- [Relevant file state, dependencies, configuration]
+
+**Root cause hypothesis:**
+- [Diagnosis based on observations]
+
+**Skip reason** *(if reproduction not attempted)*:
+- [Why reproduction was skipped]
+
+**Unreproducible constraints** *(if reproduction failed)*:
+- [What was tried and why it didn't reproduce]
+- [Hypothesis for proceeding without reproduction]
+
+## Codebase Analysis
+
+**Files verified (docs/code checked by agents):**
 - [File path 1]: [What was verified]
 - [File path 2]: [What was verified]
 
-## Design Decisions
+**Files to modify:**
+- `path/to/file1` - Purpose
+- `path/to/file2` - Purpose
 
-### From Bold Proposer (Accepted)
-- [Innovation/approach accepted from bold proposal]
-- [Why it's valuable]
+**Files to create:**
+- `path/to/new/file1` - Purpose (Estimated: X LOC)
 
-### From Bold Proposer (Rejected)
-- [Innovation/approach rejected from bold proposal]
-- [Why it's unnecessary or risky]
+**Files to delete:**
+- `path/to/deprecated/file` - Reason
 
-### From Critique (Addressed)
-- [Critical risk identified]
-- [How the plan addresses it]
+**Current architecture notes:**
+[Key observations about existing code]
 
-### From Reducer (Applied)
-- [Simplification applied]
-- [Complexity removed]
+## Interface Design
 
-## Architecture
+**New interfaces:**
+- [Interface signatures and descriptions]
 
-[High-level architecture description]
+**Modified interfaces:**
+- [Before/after comparisons]
 
-### Core Components
-
-1. **Component Name**
-   - Purpose: [what it does]
-   - Files: [list]
-   - Key responsibilities: [list]
-   - LOC estimate: ~[N]
-
-[Repeat for all components...]
-
-## Implementation Steps
-
-Follow Design-first TDD approach:
-
-**Step 1-N: Documentation** (~[LOC] LOC)
-- [Specific files and what to document]
-
-**Step N+1-M: Tests** (~[LOC] LOC)
-- [Test files to create]
-- [Test cases to implement]
-
-**Step M+1-P: Implementation** (~[LOC] LOC)
-- [Implementation files and order]
-- [Integration steps]
-
-**Total**: ~[TOTAL] LOC ([Small/Medium/Large/Very Large])
+**Documentation changes:**
+- [Doc files to update with sections]
 
 ## Test Strategy
 
-[How this feature will be tested]
+**Test modifications:**
+- `test/file1` - What to test
+  - Test case: Description
+  - Test case: Description
 
-**Test cases:**
-1. [Test case 1]
-2. [Test case 2]
-3. [Test case 3]
+**New test files:**
+- `test/new_file` - Purpose (Estimated: X LOC)
+  - Test case: Description
+  - Test case: Description
+
+**Test data required:**
+- [Fixtures, sample data, etc.]
+
+## Implementation Steps
+
+**Step 1: [Documentation change]** (Estimated: X LOC)
+- File changes
+Dependencies: None
+Correspondence:
+- Docs: [What this step adds/updates]
+- Tests: [N/A or what this enables]
+
+**Step 2: [Test case changes]** (Estimated: X LOC)
+- File changes
+Dependencies: Step 1
+Correspondence:
+- Docs: [Which doc changes define these tests]
+- Tests: [New/updated cases introduced here]
+
+**Step 3: [Implementation change]** (Estimated: X LOC)
+- File changes
+Dependencies: Step 2
+Correspondence:
+- Docs: [Which doc behaviors are implemented here]
+- Tests: [Which test cases this step satisfies]
+
+...
+
+**Total estimated complexity:** X LOC ([Complexity level])
+**Recommended approach:** [Single session / Milestone commits]
+**Milestone strategy** *(only if large)*:
+- **M1**: [What to complete in milestone 1]
+- **M2**: [What to complete in milestone 2]
+- **Delivery**: [Final deliverable]
 
 ## Success Criteria
 
@@ -125,12 +177,6 @@ Follow Design-first TDD approach:
 ## Dependencies
 
 [Any external dependencies or requirements]
-
-## Milestone Strategy
-
-- **M1**: [What to complete in milestone 1]
-- **M2**: [What to complete in milestone 2]
-- **Delivery**: [Final deliverable]
 ```
 
 ## Evaluation Criteria
@@ -143,9 +189,9 @@ Your consensus plan should:
 ✅ **Be clear**: Unambiguous implementation steps
 ✅ **Address risks**: Mitigate critical concerns from critique
 ✅ **Stay simple**: Remove unnecessary complexity per reducer
-✅ **Correct measurement**: DO NOT use time to estimate the effort as this is plan is for AI agents to execute! Use Lines of Code (LOC) instead!
+✅ **Correct measurement**: Use LOC estimates only; no time-based estimates
 
-❌ **Avoid**: Over-engineering, ignoring risks, excessive scope creep, vague specifications
+❌ **Avoid**: Over-engineering, ignoring risks, excessive scope creep, vague specifications, or "audit the codebase" steps
 
 ## Final Privacy Note
 

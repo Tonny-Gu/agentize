@@ -240,22 +240,29 @@ Complexity guidelines:
 - Update existing test cases
 - Add test fixtures/data
 - Document test scenarios
+- Make a correspondence to the documentation and interface changes from previous phases
 
 **Phase 3: Implementation (always last)**
 - Write the actual code
 - Implement the logic
 - Integrate with existing code
+- Make a correspondence to the documentation and test cases from previous phases
 
 Actions:
 - **NEVER** put implementation before documentation or tests
+- **NEVER** fuse multiple steps into one:
+  - **DO NOT**: Step 3-5: Implement feature X (Estimated: 300 LOC)
+  - **DO**: Step 3: Implement part A of feature X (Estimated: 35 LOC)
+            Step 4: Implement part B of feature X (Estimated: 63 LOC)
+            Step 5: Implement part C of feature X (Estimated: 111 LOC)
 - Group documentation updates into Step 1 (or Steps 1-N for large features)
 - Group test case work into the next step(s)
-- Only after docs and tests, begin implementation steps
 - For each step, specify:
-  - Exact files to change (with line ranges if known)
+  - Exact files to change with specific sections and lines!
   - What changes to make
   - Estimated lines of code
   - Dependencies on previous steps
+  - What the step accomplishes toward the goal
 - Break down steps larger than 400 LOC into substeps
 - Consider milestone commits for features beyond 800 LOC total
 
