@@ -46,6 +46,13 @@ fi
 # Generate timestamp for temp files
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 
+# Extract issue number from debate report filename if it follows pattern issue-N-debate.md
+ISSUE_NUMBER=""
+DEBATE_REPORT_BASENAME=$(basename "$DEBATE_REPORT_PATH")
+if [[ "$DEBATE_REPORT_BASENAME" =~ ^issue-([0-9]+)- ]]; then
+    ISSUE_NUMBER="${BASH_REMATCH[1]}"
+fi
+
 # Extract feature name and description from debate report if not provided
 if [ -z "$FEATURE_NAME" ]; then
     # Try to extract from **Feature**: line (standard debate reports)
@@ -62,10 +69,17 @@ if [ -z "$FEATURE_DESCRIPTION" ]; then
     FEATURE_DESCRIPTION="$FEATURE_NAME"
 fi
 
-# Prepare input prompt file
-INPUT_FILE=".tmp/external-review-input-${TIMESTAMP}.md"
-OUTPUT_FILE=".tmp/external-review-output-${TIMESTAMP}.txt"
-CONSENSUS_FILE=".tmp/consensus-plan-${TIMESTAMP}.md"
+# Prepare input prompt file and consensus file with issue-based naming if available
+if [ -n "$ISSUE_NUMBER" ]; then
+    INPUT_FILE=".tmp/issue-${ISSUE_NUMBER}-external-review-input.md"
+    OUTPUT_FILE=".tmp/issue-${ISSUE_NUMBER}-external-review-output.txt"
+    CONSENSUS_FILE=".tmp/issue-${ISSUE_NUMBER}-consensus.md"
+else
+    # Fall back to timestamp-based naming for backward compatibility
+    INPUT_FILE=".tmp/external-review-input-${TIMESTAMP}.md"
+    OUTPUT_FILE=".tmp/external-review-output-${TIMESTAMP}.txt"
+    CONSENSUS_FILE=".tmp/consensus-plan-${TIMESTAMP}.md"
+fi
 
 # Ensure .tmp directory exists
 mkdir -p .tmp

@@ -8,13 +8,20 @@ ultrathink
 
 # Ultra Planner Command
 
-**IMPORTANT**: This is a **planning tool only**. It takes a feature description as input and produces
-a consensus implementation plan as output. It does NOT make any code changes or implement features.
+**IMPORTANT**: Keep a correct mindset when this command is invoked.
 
-**IMPORTANT**: No matter how simple you think the request is, always strictly follow the multi-agent
+1. This is a **planning tool only**. It takes a feature description as input and produces
+a consensus implementation plan as output. It does NOT make any code changes or implement features.
+Even if user is telling you "build...", "add...", "create...", "implement...", or "fix...",
+you must interpret these as making a plan for how to have these achieved, not actually doing them!
+  - **DO NOT** make any changes to the codebase!
+
+2. This command uses a **multi-agent debate system** to generate high-quality plans.
+**No matter** how simple you think the request is, always strictly follow the multi-agent
 debase workflow below to do a thorough analysis of the request throughout the whole code base.
 Sometimes what seems simple at first may have hidden complexities or breaking changes that
-need to be uncovered via a debate.
+need to be uncovered via a debate and thorough codebase analysis.
+  - **DO** follow the following multi-agent debate workflow exactly as specified.
 
 Create implementation plans through multi-agent debate, combining innovation, critical analysis,
 and simplification into a balanced consensus plan.
@@ -48,7 +55,7 @@ This command orchestrates a three-agent debate system to generate high-quality i
 
 **Refinement mode:**
 ```
-/ultra-planner --refine .tmp/consensus-plan-20251225.md
+/ultra-planner --refine .tmp/issue-42-consensus.md
 ```
 - `$ARGUMENTS` = `--refine <plan-file>`
 - Refines an existing plan by running it through the debate system again
@@ -62,8 +69,8 @@ This command orchestrates a three-agent debate system to generate high-quality i
 **This command produces planning documents only. No code changes are made.**
 
 **Files created:**
-- `.tmp/debate-report-{timestamp}.md` - Combined three-agent report
-- `.tmp/consensus-plan-{timestamp}.md` - Final balanced plan
+- `.tmp/issue-{N}-debate.md` - Combined three-agent report
+- `.tmp/issue-{N}-consensus.md` - Final balanced plan
 
 **GitHub issue:**
 - Created via open-issue skill if user approves
@@ -299,12 +306,15 @@ Skill tool parameters:
   args: "{DEBATE_REPORT_FILE}"
 ```
 
+NOTE: This consensus synthesis can take long time depending on the complexity of the debate report.
+Give it 30 minutes timeout to complete, which is mandatory for **ALL DEBATES**!
+
 **What this skill does:**
 1. Reads the combined debate report from `DEBATE_REPORT_FILE`
 2. Prepares external review prompt using `.claude/skills/external-consensus/external-review-prompt.md`
 3. Invokes Codex CLI (preferred) or Claude API (fallback) for consensus synthesis
 4. Parses and validates the consensus plan structure
-5. Saves consensus plan to `.tmp/consensus-plan-{timestamp}.md`
+5. Saves consensus plan to `.tmp/issue-{N}-consensus.md`
 6. Returns summary and file path
 
 **Expected output structure from skill:**
@@ -363,139 +373,6 @@ To approve and implement, remove [draft] from the issue title on GitHub, then:
 
 Display this output to the user. Command completes successfully.
 
-## Error Handling
-
-### Feature Description Missing
-
-`FEATURE_DESC` is empty and no feature found in context.
-
-**Response:**
-```
-Error: No feature description provided.
-
-Usage:
-  /ultra-planner <feature-description>
-  /ultra-planner --refine <plan-file>
-
-Example:
-  /ultra-planner Add user authentication with JWT tokens
-```
-
-Ask user to provide description.
-
-### Refinement File Not Found
-
-`--refine` mode but plan file doesn't exist.
-
-**Response:**
-```
-Error: Plan file not found: {file}
-
-Please provide a valid plan file path.
-
-Available plans:
-{list .tmp/consensus-plan-*.md files}
-```
-
-Show available plan files.
-
-### Agent Launch Failure
-
-One or more agents fail to launch (e.g., agent not found, invalid configuration).
-
-**Response:**
-```
-Error: Failed to launch agent(s):
-- {agent-name}: {error-message}
-
-Please ensure all debate agents are properly configured:
-- .claude/agents/bold-proposer.md
-- .claude/agents/proposal-critique.md
-- .claude/agents/proposal-reducer.md
-```
-
-Stop execution.
-
-### Agent Execution Failure
-
-Agent launches but fails during execution (e.g., timeout, internal error).
-
-**Response:**
-```
-Warning: Agent execution failed:
-- {agent-name}: {error-message}
-
-You have {N}/3 successful agent reports.
-
-Options:
-1. Retry failed agent: {agent-name}
-2. Continue with partial results ({N} perspectives)
-3. Abort debate and use /plan-an-issue instead
-```
-
-Wait for user decision.
-
-### External Consensus Skill Failure
-
-external-consensus skill fails (Codex/Claude unavailable or error).
-
-**Response:**
-```
-Error: External consensus review failed.
-
-Error from skill: {details}
-
-Options:
-1. Retry consensus review
-2. Manually review debate report: {debate_report_file}
-3. Use one agent's proposal directly (bold/critique/reducer)
-
-The debate report contains all three perspectives.
-```
-
-Offer manual review fallback.
-
-### Placeholder Issue Creation Failure (Step 3)
-
-open-issue skill fails during placeholder creation.
-
-**Response:**
-```
-Error: Failed to create placeholder draft issue.
-
-Error: {details}
-
-Cannot proceed without an issue number for artifact naming.
-
-Please ensure:
-1. GitHub CLI is authenticated: gh auth login
-2. Repository has issues enabled
-3. You have permission to create issues
-
-Then retry: /ultra-planner {feature-description}
-```
-
-Stop execution (cannot proceed without issue number).
-
-### Consensus Issue Update Failure (Step 8)
-
-open-issue skill fails during update.
-
-**Response:**
-```
-Error: Failed to update issue #${ISSUE_NUMBER} with consensus plan.
-
-Error: {details}
-
-The consensus plan is saved to: {consensus_plan_file}
-
-You can:
-1. Manually update issue #${ISSUE_NUMBER} on GitHub using the plan file
-2. Create a new issue: /plan-an-issue {consensus_plan_file}
-```
-
-Provide plan file for manual update.
-
 ## Usage Examples
 
 ### Example 1: Basic Feature Planning
@@ -552,41 +429,3 @@ Refined consensus plan:
 Issue #42 updated with refined plan.
 URL: https://github.com/user/repo/issues/42
 ```
-
-## Hands-Off Mode
-
-**Enable auto-approval for safe operations** to reduce manual permission prompts during planning workflows.
-
-**To enable:**
-```bash
-export CLAUDE_HANDSOFF=true
-```
-
-**To disable:**
-```bash
-export CLAUDE_HANDSOFF=false
-```
-
-**Safety boundaries:**
-- Only safe/reversible operations auto-approved (reads, file writes on non-main branches)
-- Destructive actions always require manual approval (git push, git reset, rm -rf)
-- `.milestones/` files never auto-staged
-- Only active on non-main branches
-
-**Troubleshooting:**
-- If workflow gets stuck: Check `.tmp/claude-hooks/auto-approvals.log` for decisions
-- To force manual mode: Set `CLAUDE_HANDSOFF=false`
-
-## Notes
-
-- Bold-proposer runs first, then critique and reducer analyze its proposal in parallel
-- Command directly orchestrates agents (no debate-based-planning skill needed)
-- **external-consensus skill** is required for synthesis
-- **open-issue skill** is used for GitHub issue creation with `--draft` and `--auto` flags
-- Draft issues are created automatically (no user confirmation required)
-- Refinement is now handled by `/refine-issue` command (updates existing issue)
-- Plan files in `.tmp/` are **gitignored** (not tracked)
-- Execution time: **5-10 minutes** end-to-end
-- Cost: **~$2-5** per planning session (3 Opus agents + 1 external review)
-- Best for: **Large to Very Large** features (≥400 LOC)
-- Not for: **Small to Medium features** (<400 LOC) - use `/plan-an-issue` instead

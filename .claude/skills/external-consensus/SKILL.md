@@ -121,7 +121,7 @@ This skill expects:
 
 ## Outputs
 
-- **Consensus plan file**: `.tmp/consensus-plan-{timestamp}.md` with final implementation plan
+- **Consensus plan file**: `.tmp/issue-{N}-consensus.md` (if debate report follows `issue-{N}-debate.md` pattern) or `.tmp/consensus-plan-{timestamp}.md` (fallback) with final implementation plan
 - **Plan summary**: Key decisions and LOC estimate
 
 ## Implementation Workflow
@@ -134,11 +134,11 @@ Direct invocation - the script handles everything and outputs summary:
 
 ```bash
 # Simple invocation: script auto-extracts feature info and outputs summary
-.claude/skills/external-consensus/scripts/external-consensus.sh .tmp/debate-report-20251226-132218.md
+.claude/skills/external-consensus/scripts/external-consensus.sh .tmp/issue-42-debate.md
 
 # With explicit feature name and description (optional)
 .claude/skills/external-consensus/scripts/external-consensus.sh \
-    .tmp/debate-report-20251226-132218.md \
+    .tmp/issue-42-debate.md \
     "Review-Standard Simplification" \
     "Simplify skill while adding scoring"
 ```
@@ -200,7 +200,7 @@ Direct invocation - the script handles everything and outputs summary:
 
 **Script output on stdout (last line):**
 ```
-.tmp/consensus-plan-20251226-150643.md
+.tmp/issue-42-consensus.md
 ```
 
 **Script output on stderr (summary for review):**
@@ -208,8 +208,8 @@ Direct invocation - the script handles everything and outputs summary:
 Using external AI reviewer for consensus synthesis...
 
 Configuration:
-- Input: .tmp/external-review-input-20251226-150643.md (1012 lines)
-- Output: .tmp/external-review-output-20251226-150643.txt
+- Input: .tmp/issue-42-external-review-input.md (1012 lines)
+- Output: .tmp/issue-42-external-review-output.txt
 - Model: gpt-5.2-codex (Codex CLI)
 - Sandbox: read-only
 - Web search: enabled
@@ -230,7 +230,7 @@ Key Decisions:
 - Addressed from Critique: Preserve Phase 3 specialized checks
 - Applied from Reducer: Single-file architecture, compress prose
 
-Consensus plan saved to: .tmp/consensus-plan-20251226-150643.md
+Consensus plan saved to: .tmp/issue-42-consensus.md
 ```
 
 The script performs validation and summary extraction internally - no additional steps needed.
@@ -293,7 +293,7 @@ The plan is available at: {file_path}
 
 **Input:**
 ```
-Combined report: .tmp/debate-report-20251225-155030.md
+Combined report: .tmp/issue-42-debate.md
 Feature name: "JWT Authentication"
 Feature description: "Add user authentication with JWT tokens"
 ```
@@ -307,8 +307,8 @@ Using Codex (gpt-5.2-codex) for external consensus review...
 - Sandbox: read-only
 - Web search: enabled (researching JWT best practices)
 - Reasoning effort: xhigh
-- Input: .tmp/external-review-input-20251225-160130.md
-- Output: .tmp/external-review-output-20251225-160130.txt
+- Input: .tmp/issue-42-external-review-input.md
+- Output: .tmp/issue-42-external-review-output.txt
 ```
 
 **Output:**
@@ -331,7 +331,7 @@ Research Applied:
 - Confirmed refresh token rotation best practices
 - Fact-checked token expiration standards
 
-Consensus plan saved to: .tmp/consensus-plan-20251225-160245.md
+Consensus plan saved to: .tmp/issue-42-consensus.md
 
 Next step: Review plan and create GitHub issue with open-issue skill.
 ```
@@ -375,8 +375,8 @@ Codex not available. Using Claude Opus as fallback...
 - Model: opus
 - Tools: Read, Grep, Glob, WebSearch, WebFetch (read-only)
 - Permission mode: bypassPermissions
-- Input: .tmp/external-review-input-20251225-160130.md (via stdin)
-- Output: .tmp/external-review-output-20251225-160130.txt (via stdout)
+- Input: .tmp/issue-42-external-review-input.md (via stdin)
+- Output: .tmp/issue-42-external-review-output.txt (via stdout)
 
 External consensus review complete!
 [Summary as Example 1...]
