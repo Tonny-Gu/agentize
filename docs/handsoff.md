@@ -6,51 +6,148 @@ Enable automated workflows without manual permission prompts by setting `CLAUDE_
 
 ```bash
 # Enable hands-off mode
-export CLAUDE_HANDSOFF=true
+export HANDSOFF_MODE=true
 export HANDSOFF_MAX_CONTINUATIONS=10  # Optional: set auto-continue limit
 
 # Run full implementation workflow without prompts
+# Both of them will run until deliveries without human intervention.
+# Ideally, users only needs to look at issue/pr created at the end.
+/ultra-planner "New feature plan"
+/new # New session
 /issue-to-impl 42
 ```
 
-## What Gets Handsoff?
+The temporary data is stored in `.tmp/claude-hooks/handsoff-sessions/<session-id>.json`.
 
+## What Gets Handsoff?
 
 ### Permission Requests
 
 It uses `.claude/hooks/permission-request.sh` to aut-approve safe operations.
 It is a more powerful solution to `settings.json` as it only supports rigid regex patterns.
 
-
 ### Auto-continuations
 
-Automatically continues workflows by tracking workflow state through `UserPromptSubmit`, `Stop`, and `PostToolUse` hooks. The system detects `/ultra-planner` and `/issue-to-impl` workflows and stops continuation when the workflow reaches completion.
+Automatically continues workflows by tracking workflow state through `UserPromptSubmit`, `Stop`, and `PostToolUse` hooks.
+The system detects `/ultra-planner` and `/issue-to-impl` workflows and stops continuation when the workflow reaches completion.
+All these three hooks shall be implemented in Python as it is easier to:
+1. manage complicated state logics;
+2. parse JSON easily
 
-**Session tracking**: Each session is assigned a unique session ID. If `CLAUDE_SESSION_ID` is not available from the hook environment, the system generates and stores a session token in `.tmp/claude-hooks/handsoff-sessions/current-session-id`.
+For the input data from hooks, see [Claude Code Hooks documents](https://code.claude.com/docs/en/hooks).
+A typical input data is from `stdin`, which can be read
 
-**State file format**: Per-session state is stored at `.tmp/claude-hooks/handsoff-sessions/<session_id>.state` with a single-line format:
-```
-workflow:state:count:max
+```python
+import sys
+import json
+raw_json =  json.load(sys.stdin.read())
 ```
 
-Example:
+which has the following fields, where `session_id` and `transcript_path` are the key fields to identify the session and store state:
+
+```json
+{
+  // Common fields
+  session_id: string
+  transcript_path: string  // Path to conversation JSON
+  cwd: string              // The current working directory when the hook is invoked
+  permission_mode: string  // Current permission mode: "default", "plan", "acceptEdits", "dontAsk", or "bypassPermissions"
+
+  // Event-specific fields
+  hook_event_name: string
+  ...
+}
 ```
-issue-to-impl:implementation:3:10
+
+and the response is in JSONL format, where each single line is a JSON object like below:
+```json
+{
+  {
+  "id": "msg_01XFDUDYJgAACzvnptvVoYEL",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+    {
+      "type": "text",
+      "text": "Hello! How can I assist you today?"
+    }
+  ],
+  "model": "claude-sonnet-4-5",
+  "stop_reason": "end_turn",
+  "usage": {
+    "input_tokens": 12,
+    "output_tokens": 8
+  }
+}
+```
+
+We also designed a state file to track workflow state and continuation count:
+```json
+{
+  "workflow": "ultra-planner",  // or "issue-to-impl"
+  "state": "wip",               // or "done"
+  "count": 3                    // number of continuations so far
+}
 ```
 
 **Hook behavior**:
 
-- `UserPromptSubmit`: Detects workflow from user prompt (e.g., `/ultra-planner` or `/issue-to-impl`). Initializes state file with workflow name, initial state, count=0, and max from `HANDSOFF_MAX_CONTINUATIONS` (default: 10).
+- `UserPromptSubmit`: It reads the current `session_id` and find the `.tmp/claude-hooks/handsoff-sessions/<session_id>.json` state file (create one if not exists). It checks if the newest user prompt starts with `/ultra-planner` or `/issue-to-impl`, and if so, changes the `workflow` field accordingly, and initializes the `state` to `wip`.
 
-- `PostToolUse`: Tracks tool invocations to update workflow state:
-  - **ultra-planner**: `planning` → (Skill open-issue creates placeholder) → `awaiting_details` → (Bash gh issue edit --add-label plan) → `done`
-  - **issue-to-impl**: `docs_tests` → (after milestone 1) → `implementation` → (Skill open-pr) → `done`
+- `PostToolUse`: Post tool use hook checks if the tool is related to the workflow state transitions. Specifically:
+  - **ultra-planner**: As per our [ultra-planner workflow](../.claude/commands/ultra-planner.md) it uses `gh issue create` to create a placeholder issue, and later uses `gh issue --edit` to update the issue with implementation details. The hook detects these tool uses and updates the workflow state. Once it calls `gh issue --edit` with `--body` or `--file-body`, it marks the workflow state as `done`.
+  - **issue-to-impl**: As per our [issue-to-implementation workflow](../.claude/commands/issue-to-impl.md), it creates milestones and pull requests. If it creates a git commit message with `[milestone]`, the state is still `wip`. Once it hit a `gh pr create` tool use, it marks the workflow state as `done`.
 
-- `Stop`: Reads state file. If workflow state is `done`, returns `ask` (stop auto-continue). Otherwise, increments count and returns `allow` if count ≤ max, else `ask`.
+- `Stop`: This hook is the key to enable full hands-off auto-continuation. It reads the state file and checks:
 
-**Fail-closed**: Invalid state file content or missing workflow defaults to `ask` (manual intervention required).
+If `state` is `done`, it responds with:
+```json
+{
+  "decision": "block",
+  "reason": "The task is done.",
+}
+```
 
-**Decision logic**: The Stop hook uses bash-based conditional logic to evaluate workflow state and continuation count. It does not invoke any LLM or API; all decisions are made locally based on state file contents.
+Otherwise, the last 5 lines of `text` content from the transcript JSONL file, read from `transcript_path`, are fed to Haiku to determine what to do next.
+
+Typically, we have the following:
+
+`/ultra-planner` sometimes blocks itself after analyzing the issue.
+
+1. Just simply give a "continue on plan making" decision here.
+
+`/issue-to-impl` sometimes blocks itself after creating a milestone.
+
+1. If it is not the last milestone of development, just give a simple "continue on the implementation of the latest milestone" decision here.
+2. If it is the last milestone, we can say "/pull-request --open" where this command fuses the code review with the PR creation.
+3. After code review is done, it will ask you to resolve the code review concerns, or create the PR.
+   - Accordingly make the decision of "fix the code review comments" or "create the PR".
+4. Once the PR content is created, it will ask you "Should I create the PR?" --- simply make a decision "yes, create the PR".
+5. After PR is created, the workflow is done.
+
+The response should be in such format:
+```json
+{
+  "decision": undefined,
+  "hookSpecificOutput": {
+    "hookEventName": "Stop",
+    "additionalContext": "<your decision description here>"
+  }
+}
+```
+
+For all unknown cases, just simply respond with a block decision to avoid any unsafe operations,
+and leave a comment on the corresponding issue saying `@user, manual intervention is required for session <session_id>.`,
+where `user` is the GitHub user who opened the issue, and `session_id` is the current session ID.
+
+The response should be in such format:
+```json
+{
+  "decision": "block",
+  "reason": "Manual intervention required for session <session_id>.",
+  "comment": "@user, manual intervention is required for session <session_id>."
+}
+```
 
 
 ## Debug Logging
