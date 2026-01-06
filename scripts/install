@@ -48,8 +48,8 @@ Options:
   --help             Display this help message
 
 Description:
-  Installs Agentize by cloning the repository, initializing the worktree
-  layout, running setup, and providing shell RC integration instructions.
+  Installs Agentize by cloning the repository, running setup, and providing
+  shell RC integration instructions.
 
 Examples:
   # Default installation
@@ -92,11 +92,11 @@ if [ -e "$INSTALL_DIR" ]; then
     exit 1
 fi
 
-# Clone or copy repository
+# Clone repository
 echo "Installing to: $INSTALL_DIR"
 
 if [ -d "$REPO_SOURCE" ]; then
-    # Local path - copy as bare repo
+    # Local path - clone from local repository
     echo "Copying from local repository: $REPO_SOURCE"
 
     # Verify it's a valid git repository
@@ -105,22 +105,15 @@ if [ -d "$REPO_SOURCE" ]; then
         exit 1
     fi
 
-    # Clone directly from the repository path (works for both normal and worktree layouts)
-    # Use file:// protocol to avoid hard-linking which can carry over worktree metadata
-    if ! git clone --bare "file://$(cd "$REPO_SOURCE" && pwd)" "$INSTALL_DIR" >/dev/null 2>&1; then
+    if ! git clone "$REPO_SOURCE" "$INSTALL_DIR" >/dev/null 2>&1; then
         echo "Error: Failed to clone from local repository" >&2
         exit 1
     fi
-
-    # Remove origin remote to prevent git from checking the source repo's worktree state
-    # This is critical when the source repo has worktrees - git would otherwise refuse to
-    # create a worktree for a branch that's checked out in the source repo
-    git -C "$INSTALL_DIR" remote remove origin 2>/dev/null || true
 else
-    # Remote URL - clone as bare repo
+    # Remote URL - clone from remote
     echo "Cloning from: $REPO_SOURCE"
 
-    if ! git clone --bare "$REPO_SOURCE" "$INSTALL_DIR" >/dev/null 2>&1; then
+    if ! git clone "$REPO_SOURCE" "$INSTALL_DIR" >/dev/null 2>&1; then
         echo "Error: Failed to clone repository" >&2
         exit 1
     fi
@@ -128,50 +121,16 @@ fi
 
 echo "Repository cloned successfully"
 
-# Initialize worktree environment
-echo "Initializing worktree environment..."
-
-# Extract wt-cli.sh from bare repo and run init
-# In a bare repo, files are not in the working tree, so we need to extract them
-(
-    cd "$INSTALL_DIR" || exit 1
-
-    # Detect default branch (main or master)
-    if git show-ref --verify --quiet refs/heads/main; then
-        DEFAULT_BRANCH="main"
-    elif git show-ref --verify --quiet refs/heads/master; then
-        DEFAULT_BRANCH="master"
-    else
-        echo "Error: Cannot find main or master branch" >&2
-        exit 1
-    fi
-
-    # Extract wt-cli.sh and run it
-    TEMP_SCRIPT="/tmp/wt-cli-$$.sh"
-    git show "$DEFAULT_BRANCH:scripts/wt-cli.sh" > "$TEMP_SCRIPT" || exit 1
-    bash "$TEMP_SCRIPT" init
-    INIT_RESULT=$?
-    rm -f "$TEMP_SCRIPT"
-    exit $INIT_RESULT
-) >/dev/null 2>&1
-
-if [ $? -ne 0 ]; then
-    echo "Error: Failed to initialize worktree environment" >&2
-    exit 1
-fi
-
-echo "Worktree initialized: $INSTALL_DIR/trees/main"
-
-# Run setup in trees/main
+# Run setup
 echo "Running setup..."
 
-if ! make -C "$INSTALL_DIR/trees/main" setup >/dev/null 2>&1; then
+if ! make -C "$INSTALL_DIR" setup >/dev/null 2>&1; then
     echo "Error: Failed to run setup" >&2
-    echo "Command failed: make -C $INSTALL_DIR/trees/main setup" >&2
+    echo "Command failed: make -C $INSTALL_DIR setup" >&2
     exit 1
 fi
 
-echo "Setup complete: $INSTALL_DIR/trees/main/setup.sh"
+echo "Setup complete: $INSTALL_DIR/setup.sh"
 
 # Print shell RC integration instructions
 cat <<EOF
@@ -183,7 +142,7 @@ Installation Complete!
 To enable agentize commands (wt, lol) in your shell, add this line to your
 shell RC file (~/.bashrc, ~/.zshrc, etc.):
 
-    source $INSTALL_DIR/trees/main/setup.sh
+    source $INSTALL_DIR/setup.sh
 
 Then restart your shell or run:
 
@@ -194,8 +153,8 @@ After that, you can use:
   - lol init, lol update, etc.
 
 For more information:
-  - Quick Start: $INSTALL_DIR/trees/main/README.md
-  - Documentation: $INSTALL_DIR/trees/main/docs/
+  - Quick Start: $INSTALL_DIR/README.md
+  - Documentation: $INSTALL_DIR/docs/
 
 EOF
 
