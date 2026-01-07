@@ -20,16 +20,6 @@
         ]
       }
     ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/stop.py"
-          }
-        ]
-      }
-    ],
     "PreToolUse": [
       {
         "matcher": "*",
@@ -58,7 +48,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/log-token-usage.sh"
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/stop.py"
+          },
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/log-token-usage.sh"
           }
         ]
       }
