@@ -5,6 +5,8 @@ import json
 import os
 import datetime
 import re
+import subprocess
+from logger import log_tool_decision
 
 # This hook logs tools used in HANDSOFF_MODE and enforces permission rules.
 
@@ -101,9 +103,6 @@ PERMISSION_RULES = {
         ('Read', r'.*\.pem$'),
     ],
     'ask': [
-        # Git write operations
-        ('Bash', r'^git checkout'),
-
         # General commands
         ('Bash', r'^python3'),
         ('Bash', r'^test(?!\s+-[fd])'),  # test without -f or -d flags
@@ -120,12 +119,60 @@ def strip_env_vars(command):
     env_pattern = re.compile(r'^(\w+=\S+\s+)+')
     return env_pattern.sub('', command)
 
+def ask_haiku_first(tool, target):
+    if os.getenv('HANDSOFF_HAIKU_FIRST', '0').lower() not in ['1', 'true', 'on', 'enable']:
+        return 'ask'
+
+    global hook_input
+
+    transcript_path = hook_input.get("transcript_path", "")
+
+    # Read last line from JSONL transcript
+    try:
+        with open(transcript_path, 'r') as f:
+            transcript = f.readlines()[-1]
+    except Exception:
+        return 'ask'
+
+    prompt = f'''You are a judger for the below Claude Code tool usage.
+Determine the risk of implicitly automatically run this command below.
+Give 'allow' for low or no-risk cases.
+Give 'deny' for absolutely high risk cases.
+Give 'ask' for what you are not sure.
+Do not output anything else.
+
+Here is context of the tool usage:
+{transcript}
+
+Besides the tool itself, if it is a script execution, consider to look into the script content too.
+
+Tool: {tool}
+Target: {target}
+'''
+
+    try:
+        result = subprocess.run(
+            ['claude', 'chat', '--model', 'haiku', prompt.strip()],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        decision = result.stdout.strip().lower()
+        log_tool_decision(hook_input['session_id'], transcript, tool, target, decision)
+
+        if decision in ['allow', 'deny', 'ask']:
+            return decision
+        else:
+            return 'ask'
+    except Exception:
+        return 'ask'
+
 def check_permission(tool, target):
     """
     Check permission for tool usage against PERMISSION_RULES.
-    Returns: 'allow', 'deny', or 'ask'
+    Returns: (decision, source) where decision is 'allow'/'deny'/'ask' and source is 'rules' or 'haiku'
     Priority: deny → ask → allow (first match wins)
-    Default: 'ask' if no match or error
+    Default: ask Haiku if no match or error
     """
     try:
         # Special handling for Bash: strip environment variables
@@ -138,16 +185,18 @@ def check_permission(tool, target):
                 if rule_tool == tool:
                     try:
                         if re.search(pattern, target):
-                            return decision
+                            return (decision, 'rules')
                     except re.error:
                         # Malformed pattern, fail safe to 'ask'
                         continue
 
-        # No match, default to 'ask'
-        return 'ask'
+        # No match, ask Haiku
+        haiku_decision = ask_haiku_first(tool, target)
+        return (haiku_decision, 'haiku')
     except Exception:
-        # Any error, fail safe to 'ask'
-        return 'ask'
+        # Any error, ask Haiku
+        haiku_decision = ask_haiku_first(tool, target)
+        return (haiku_decision, 'haiku')
 
 hook_input = json.load(sys.stdin)
 
@@ -201,7 +250,7 @@ else:
     target = str(tool_input)[:100]
 
 # Check permission
-permission_decision = check_permission(tool, target)
+permission_decision, decision_source = check_permission(tool, target)
 
 if os.getenv('HANDSOFF_MODE', '0').lower() in ['1', 'true', 'on', 'enable'] and \
    os.getenv('HANDSOFF_DEBUG', '0').lower() in ['1', 'true', 'on', 'enable']:
@@ -223,10 +272,16 @@ if os.getenv('HANDSOFF_MODE', '0').lower() in ['1', 'true', 'on', 'enable'] and 
         except (json.JSONDecodeError, Exception):
             pass
 
-    # Log tool usage
+    # Log tool usage - separate files for rules vs haiku decisions
     time = datetime.datetime.now().isoformat()
-    with open('.tmp/hooked-sessions/tool-used.txt', 'a') as f:
-        f.write(f'[{time}] [{session}] [{workflow}] {tool} | {target}\n')
+    if decision_source == 'rules' and permission_decision == 'allow':
+        # Automatically approved tools go to tool-used.txt
+        with open('.tmp/hooked-sessions/tool-used.txt', 'a') as f:
+            f.write(f'[{time}] [{session}] [{workflow}] {tool} | {target}\n')
+    elif decision_source == 'haiku':
+        # Haiku-determined tools go to their own file
+        with open('.tmp/hooked-sessions/tool-haiku-determined.txt', 'a') as f:
+            f.write(f'[{time}] [{session}] [{workflow}] [{permission_decision}] {tool} | {target}\n')
 
 output = {
     "hookSpecificOutput": {
