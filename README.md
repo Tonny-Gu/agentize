@@ -11,7 +11,7 @@ curl -fsSL https://raw.githubusercontent.com/SyntheSys-Lab/agentize/main/scripts
 Then add to your shell RC file (`~/.bashrc`, `~/.zshrc`, etc.):
 
 ```bash
-source $HOME/.agentize/setup.sh
+source $HOME/.agentize/trees/main/setup.sh
 ```
 
 See [docs/cli/install.md](./docs/cli/install.md) for installation options and troubleshooting.
@@ -87,6 +87,9 @@ Agentize provides shell functions that work from any directory:
 
 For persistence, add `source /path/to/agentize/setup.sh` to your shell RC file (`~/.bashrc`, `~/.zshrc`, etc.).
 
+**Direct execution:** `scripts/wt-cli.sh` can be executed directly or sourced for function access.
+
+### Worktree Management (`wt`)
 
 General-purpose git worktree helper for **bare repositories**:
 

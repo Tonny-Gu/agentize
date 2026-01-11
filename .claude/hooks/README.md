@@ -66,6 +66,16 @@ Hooks enable automated behaviors and integrations at key points in the Claude Co
 - Injects workflow-specific continuation prompts
 - See [docs/feat/core/handsoff.md](../../docs/feat/core/handsoff.md) for details
 
+### log-token-usage.sh
+**Event**: Stop (after Claude finishes responding)
+
+**Purpose**: Track token usage across sessions
+
+**Actions**:
+- Reads transcript file to extract token usage information
+- Logs timestamp, session ID, working directory, and token counts
+- Appends data to `~/claude-usage.log` for usage tracking
+
 ## Hook Invocation Mechanism
 
 Hooks are configured in `.claude/settings.json`:
