@@ -6,12 +6,14 @@
 # debate report using an external AI reviewer (Codex or Claude Opus).
 #
 # Usage:
-#   ./external-consensus.sh <path-to-report1> <path-to-report2> <path-to-report3>
+#   ./external-consensus.sh <report1> <report2> <report3> <report4> <report5>
 #
 # Arguments:
-#   path-to-report1   Path to first agent report (e.g., bold-proposer output) (required)
-#   path-to-report2   Path to second agent report (e.g., critique output) (required)
-#   path-to-report3   Path to third agent report (e.g., reducer output) (required)
+#   report1   Path to bold proposer report (required)
+#   report2   Path to paranoia proposer report (required)
+#   report3   Path to critique report (required)
+#   report4   Path to proposal-reducer report (required)
+#   report5   Path to code-reducer report (required)
 #
 # Output:
 #   Prints the path to the generated consensus plan file on stdout
@@ -27,19 +29,21 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILL_DIR="$(dirname "$SCRIPT_DIR")"
 
 # Validate input arguments
-if [ $# -ne 3 ]; then
-    echo "Error: Exactly 3 report paths are required" >&2
-    echo "Usage: $0 <path-to-report1> <path-to-report2> <path-to-report3>" >&2
+if [ $# -ne 5 ]; then
+    echo "Error: Exactly 5 report paths are required" >&2
+    echo "Usage: $0 <bold> <paranoia> <critique> <proposal-reducer> <code-reducer>" >&2
     exit 1
 fi
 
-# Accept 3 report paths
+# Accept 5 report paths
 REPORT1_PATH="$1"
 REPORT2_PATH="$2"
 REPORT3_PATH="$3"
+REPORT4_PATH="$4"
+REPORT5_PATH="$5"
 
 # Validate all report files exist
-for REPORT_PATH in "$REPORT1_PATH" "$REPORT2_PATH" "$REPORT3_PATH"; do
+for REPORT_PATH in "$REPORT1_PATH" "$REPORT2_PATH" "$REPORT3_PATH" "$REPORT4_PATH" "$REPORT5_PATH"; do
     if [ ! -f "$REPORT_PATH" ]; then
         echo "Error: Report file not found: $REPORT_PATH" >&2
         exit 1
@@ -81,6 +85,12 @@ if [ -z "$FEATURE_NAME" ]; then
     FEATURE_NAME="$(extract_feature_name "$REPORT3_PATH")"
 fi
 if [ -z "$FEATURE_NAME" ]; then
+    FEATURE_NAME="$(extract_feature_name "$REPORT4_PATH")"
+fi
+if [ -z "$FEATURE_NAME" ]; then
+    FEATURE_NAME="$(extract_feature_name "$REPORT5_PATH")"
+fi
+if [ -z "$FEATURE_NAME" ]; then
     FEATURE_NAME="Unknown Feature"
 fi
 
@@ -116,40 +126,59 @@ else
     DEBATE_REPORT_FILE=".tmp/debate-report-${TIMESTAMP}.md"
 fi
 
-# Combine all 3 reports into a single debate report file
+# Combine all 5 reports into a single debate report file
 cat > "$DEBATE_REPORT_FILE" <<EOF
 # Multi-Agent Debate Report: $FEATURE_NAME
 
 **Generated**: $(date +"%Y-%m-%d %H:%M")
 
-This document combines three perspectives from our multi-agent debate-based planning system:
-1. **Report 1**: $(basename "$REPORT1_PATH")
-2. **Report 2**: $(basename "$REPORT2_PATH")
-3. **Report 3**: $(basename "$REPORT3_PATH")
+This document combines five perspectives from our multi-agent debate-based planning system:
+1. **Bold Proposer**: $(basename "$REPORT1_PATH") - Innovative, incremental improvement approach
+2. **Paranoia Proposer**: $(basename "$REPORT2_PATH") - Destructive refactoring approach
+3. **Critique**: $(basename "$REPORT3_PATH") - Feasibility and risk analysis
+4. **Proposal Reducer**: $(basename "$REPORT4_PATH") - Simplification (minimize changes)
+5. **Code Reducer**: $(basename "$REPORT5_PATH") - Code volume analysis (limit growth)
 
 ---
 
-## Part 1: $(basename "$REPORT1_PATH")
+## Part 1: Bold Proposer - $(basename "$REPORT1_PATH")
 
 $(cat "$REPORT1_PATH")
 
 ---
 
-## Part 2: $(basename "$REPORT2_PATH")
+## Part 2: Paranoia Proposer - $(basename "$REPORT2_PATH")
 
 $(cat "$REPORT2_PATH")
 
 ---
 
-## Part 3: $(basename "$REPORT3_PATH")
+## Part 3: Critique - $(basename "$REPORT3_PATH")
 
 $(cat "$REPORT3_PATH")
 
 ---
 
+## Part 4: Proposal Reducer - $(basename "$REPORT4_PATH")
+
+$(cat "$REPORT4_PATH")
+
+---
+
+## Part 5: Code Reducer - $(basename "$REPORT5_PATH")
+
+$(cat "$REPORT5_PATH")
+
+---
+
 ## Next Steps
 
-This combined report will be reviewed by an external consensus agent (Codex or Claude Opus) to synthesize a final, balanced implementation plan.
+This combined report will be reviewed by an external consensus agent (Codex or Claude Opus) to synthesize final, balanced implementation plan(s).
+
+If the perspectives diverge significantly, multiple plan options will be provided:
+- **Plan A (Conservative)**: Minimal changes, lower risk
+- **Plan B (Balanced)**: Middle ground approach
+- **Plan C (Aggressive)**: Maximum refactoring, higher reward/risk
 EOF
 
 # Load the combined debate report content for use in external review

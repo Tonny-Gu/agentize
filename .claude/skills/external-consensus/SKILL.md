@@ -95,45 +95,49 @@ CONSENSUS_PLAN=$(cat "$OUTPUT_FILE")
 ## Skill Philosophy
 
 After three agents debate a feature from different perspectives, an **external, neutral reviewer** synthesizes the final plan:
+After five agents analyze a feature from different perspectives, an **external, neutral reviewer** synthesizes the final plan(s):
 
 - **External = Unbiased**: Not influenced by any single perspective
 - **Consensus = Balanced**: Incorporates best ideas from all agents
 - **Actionable = Clear**: Produces ready-to-implement plan with specific steps
+- **Flexible = Multiple Plans**: When perspectives diverge significantly, provides multiple plan options
 
-The external reviewer acts as a "tie-breaker" and "integrator" - resolving conflicts between agents and combining their insights into a coherent whole.
+The external reviewer acts as a "tie-breaker" and "integrator" - resolving conflicts between agents and combining their insights into a coherent whole. When consensus cannot be reached, it provides multiple plan options for the developer to choose from.
 
 ## Skill Overview
 
 When invoked, this skill:
 
-1. **Loads combined debate report**: Three-agent perspectives from debate-based-planning skill
+1. **Loads combined debate report**: Five-agent perspectives from debate-based-planning skill
 2. **Prepares external review prompt**: Uses template with debate context
 3. **Invokes external reviewer**: Calls Codex (preferred) or Claude Opus (fallback)
-4. **Parses consensus plan**: Extracts structured implementation plan from response
-5. **Returns final plan**: Ready for user approval and GitHub issue creation
+4. **Parses consensus plan(s)**: Extracts structured implementation plan(s) from response
+5. **Returns final plan(s)**: Ready for user approval and GitHub issue creation
 
 ## Inputs
 
-This skill requires exactly 3 agent report file paths:
-- **Report 1**: Path to first agent report (e.g., `.tmp/issue-42-bold-proposal.md`)
-- **Report 2**: Path to second agent report (e.g., `.tmp/issue-42-critique.md`)
-- **Report 3**: Path to third agent report (e.g., `.tmp/issue-42-reducer.md`)
+This skill requires exactly 5 agent report file paths:
+- **Report 1**: Path to bold proposer report (e.g., `.tmp/issue-42-bold-proposal.md`)
+- **Report 2**: Path to paranoia proposer report (e.g., `.tmp/issue-42-paranoia-proposal.md`)
+- **Report 3**: Path to critique report (e.g., `.tmp/issue-42-critique.md`)
+- **Report 4**: Path to proposal-reducer report (e.g., `.tmp/issue-42-proposal-reducer.md`)
+- **Report 5**: Path to code-reducer report (e.g., `.tmp/issue-42-code-reducer.md`)
 
 The script automatically:
-- Extracts feature name from any of the three reports (case-insensitive, supports multiple formats):
+- Extracts feature name from any of the five reports (case-insensitive, supports multiple formats):
   - Headers: `# Feature: Example` or `## Title: Example`
   - Bold labels: `**Feature**: Example` or `**Title**: Example`
   - Plain labels: `Feature: Example` or `Title: Example`
-  - Scans reports in priority order (report 1 → 2 → 3) until match found
+  - Scans reports in priority order (report 1 → 2 → 3 → 4 → 5) until match found
   - Falls back to "Unknown Feature" if no match in any report
 - Extracts issue number from first report filename (if it follows `issue-{N}-*` pattern)
-- Combines all 3 reports into a single debate report file
+- Combines all 5 reports into a single debate report file
 
 ## Outputs
 
-- **Combined debate report**: `.tmp/issue-{N}-debate.md` (if first report has issue number) or `.tmp/debate-report-{timestamp}.md` (fallback) with all 3 reports combined
-- **Consensus plan file**: `.tmp/issue-{N}-consensus.md` (if debate report has issue number) or `.tmp/consensus-plan-{timestamp}.md` (fallback) with final implementation plan
-- **Plan summary**: Key decisions and LOC estimate
+- **Combined debate report**: `.tmp/issue-{N}-debate.md` (if first report has issue number) or `.tmp/debate-report-{timestamp}.md` (fallback) with all 5 reports combined
+- **Consensus plan file**: `.tmp/issue-{N}-consensus.md` (if debate report has issue number) or `.tmp/consensus-plan-{timestamp}.md` (fallback) with final implementation plan(s)
+- **Plan summary**: Key decisions, consensus status, and plan count
 
 ## Implementation Workflow
 
@@ -141,43 +145,47 @@ The script automatically:
 
 ### Step 1: Invoke External Consensus Script
 
-Direct invocation with 3 report paths - the script handles everything and outputs summary:
+Direct invocation with 5 report paths - the script handles everything and outputs summary:
 
 ```bash
-# Standard invocation: pass 3 report file paths
+# Standard invocation: pass 5 report file paths
 .claude/skills/external-consensus/scripts/external-consensus.sh \
     .tmp/issue-42-bold-proposal.md \
+    .tmp/issue-42-paranoia-proposal.md \
     .tmp/issue-42-critique.md \
-    .tmp/issue-42-reducer.md
+    .tmp/issue-42-proposal-reducer.md \
+    .tmp/issue-42-code-reducer.md
 ```
 
 **Script automatically:**
-1. Validates all 3 report files exist
+1. Validates all 5 report files exist
 2. Extracts issue number from first report filename (if it follows `issue-{N}-*` pattern)
-3. Extracts feature name from any of the three reports (case-insensitive, multiple formats):
+3. Extracts feature name from any of the five reports (case-insensitive, multiple formats):
    - Accepts headers (`# Feature:`), bold labels (`**Feature**:`), or plain labels (`Feature:`)
-   - Scans in priority order: report 1 → 2 → 3 until first match found
+   - Scans in priority order: report 1 → 2 → 3 → 4 → 5 until first match found
    - Falls back to "Unknown Feature" if no label found in any report
-4. Combines all 3 reports into a single debate report file (`.tmp/issue-{N}-debate.md` or `.tmp/debate-report-{timestamp}.md`)
+4. Combines all 5 reports into a single debate report file (`.tmp/issue-{N}-debate.md` or `.tmp/debate-report-{timestamp}.md`)
 5. Loads and processes prompt template with variable substitution
 6. Checks if Codex is available (prefers Codex with xhigh reasoning)
 7. Falls back to Claude Opus if Codex unavailable
 8. Invokes external AI with appropriate configuration:
    - **Codex**: `gpt-5.2-codex`, read-only sandbox, web search enabled, xhigh reasoning (30 min)
    - **Claude**: Opus model, read-only tools, bypassPermissions (30 min)
-9. Saves consensus plan to `.tmp/issue-{N}-consensus.md` or `.tmp/consensus-plan-{timestamp}.md`
+9. Saves consensus plan(s) to `.tmp/issue-{N}-consensus.md` or `.tmp/consensus-plan-{timestamp}.md`
 10. Validates output and extracts summary information
 11. Outputs consensus file path on stdout (last line)
 12. Displays summary information on stderr for user review
 
 **Required inputs:**
-- Path to first agent report (required)
-- Path to second agent report (required)
-- Path to third agent report (required)
+- Path to bold proposer report (required)
+- Path to paranoia proposer report (required)
+- Path to critique report (required)
+- Path to proposal-reducer report (required)
+- Path to code-reducer report (required)
 
 **No environment variables needed** - just invoke the script and review the output
 
-**Expected output format:**
+**Expected output format (single consensus):**
 ```markdown
 # Implementation Plan: {Feature Name}
 
@@ -195,7 +203,7 @@ Direct invocation with 3 report paths - the script handles everything and output
 
 ## Implementation Steps
 
-[Detailed steps with LOC estimates...]
+[Detailed steps with code diffs...]
 
 ## Test Strategy
 
@@ -209,6 +217,63 @@ Direct invocation with 3 report paths - the script handles everything and output
 ## Risks and Mitigations
 
 [Risk table...]
+```
+
+**Expected output format (multiple plans when no consensus):**
+```markdown
+# Implementation Plans: {Feature Name}
+
+## Consensus Status
+
+**Consensus achieved**: No
+**Reason**: Significant divergence between Bold (incremental) and Paranoia (destructive) approaches.
+**Plans provided**: 3
+
+---
+
+# Plan A: Conservative (Minimal Changes)
+
+## Summary
+[Based primarily on Bold proposal with Proposal-Reducer simplifications]
+
+## Codebase Analysis
+[File changes...]
+
+## Implementation Steps
+[Steps with code diffs...]
+
+---
+
+# Plan B: Balanced (Middle Ground)
+
+## Summary
+[Hybrid approach incorporating elements from both proposals]
+
+## Codebase Analysis
+[File changes...]
+
+## Implementation Steps
+[Steps with code diffs...]
+
+---
+
+# Plan C: Aggressive (Maximum Refactoring)
+
+## Summary
+[Based primarily on Paranoia proposal with Code-Reducer optimizations]
+
+## Codebase Analysis
+[File changes...]
+
+## Implementation Steps
+[Steps with code diffs...]
+
+---
+
+## Recommendation
+
+**Suggested plan**: [A/B/C]
+**Rationale**: [Why this plan is recommended]
 ```
 
 **Modification levels:**
@@ -260,13 +325,13 @@ The `external-consensus.sh` script handles most error scenarios internally. Here
 
 ### Report Files Not Found
 
-The script validates that all 3 report files exist. If any file is missing, it exits with:
+The script validates that all 5 report files exist. If any file is missing, it exits with:
 
 ```
 Error: Report file not found: {file_path}
 ```
 
-**Solution**: Ensure all 3 agent reports were generated successfully by the multi-agent debate workflow.
+**Solution**: Ensure all 5 agent reports were generated successfully by the multi-agent debate workflow.
 
 ### Codex CLI Unavailable (Auto-fallback to Claude)
 

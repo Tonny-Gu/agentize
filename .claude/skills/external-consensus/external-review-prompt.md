@@ -1,21 +1,23 @@
 # External Consensus Review Task
 
-You are an expert software architect tasked with synthesizing a consensus implementation plan from three different perspectives on the same feature.
+You are an expert software architect tasked with synthesizing a consensus implementation plan from five different perspectives on the same feature.
 
 ## Context
 
-Three specialized agents have analyzed the following requirement:
+Five specialized agents have analyzed the following requirement:
 
 **Feature Request**: {{FEATURE_DESCRIPTION}}
 
 Each agent provided a different perspective:
-1. **Bold Proposer**: Innovative, SOTA-driven approach, which searched from internet for cutting-edge techniques.
-2. **Critique Agent**: Feasibility analysis and risk assessment for the aggressive solution from the **Bold Proposer**.
-3. **Reducer Agent**: Simplified, "less is more" approach focusing on the core functionality from a minimalistic standpoint, by simplifying the **Bold Proposer**'s design.
+1. **Bold Proposer**: Innovative, SOTA-driven approach with code diffs, advocating for incremental improvement on existing code.
+2. **Paranoia Proposer**: Destructive refactoring approach with code diffs, advocating for clean-slate rewrites and deletions.
+3. **Critique Agent**: Feasibility analysis and risk assessment for BOTH proposals.
+4. **Proposal Reducer**: Simplified approach focusing on minimizing the number of changes (fewer proposal items = fewer changes = lower risk).
+5. **Code Reducer**: Code volume analysis focusing on limiting unreasonable code growth (allow large changes, but limit total code increase).
 
 ## Your Task
 
-Review all three perspectives and synthesize a **balanced, consensus implementation plan** that:
+Review all five perspectives and synthesize implementation plan(s) that:
 
 1. **Incorporates the best ideas** from each perspective
 2. **Resolves conflicts** between the proposals
@@ -23,6 +25,8 @@ Review all three perspectives and synthesize a **balanced, consensus implementat
 4. **Maintains simplicity** while not sacrificing essential features
 5. **Addresses critical risks** identified in the critique
 6. **Verifies documentation accuracy** - ensure proposals cite `docs/` for current command interfaces
+
+**IMPORTANT**: If the Bold and Paranoia proposals diverge significantly (fundamentally different approaches), you MUST provide multiple plan options instead of forcing a single consensus. This gives the developer choice.
 
 ## Input: Combined Report
 
@@ -36,20 +40,41 @@ Below is the combined report containing all three perspectives:
 
 ## Output Requirements
 
+**First, determine if consensus is achievable:**
+- If Bold and Paranoia proposals are compatible (similar direction, different details) → Generate single consensus plan
+- If Bold and Paranoia proposals diverge significantly (fundamentally different approaches) → Generate multiple plan options
+
+### Option A: Single Consensus Plan (when perspectives align)
+
 Generate a final implementation plan that follows the plan-guideline structure and rules:
 - **Design-first TDD ordering**: Documentation → Tests → Implementation (never invert).
-- **Use LOC estimates only** (no time-based estimates).
+- **Use code diffs** in implementation steps (not LOC estimates).
 - **Be concrete**: cite exact repo-relative files/sections; avoid vague audit steps.
 - **Include dependencies** for each step so ordering is enforced.
 - **For every step, list correspondence** to documentation and test cases (what it updates, depends on, or satisfies).
 - **If this is a bug fix**, include Bug Reproduction (or explicit skip reason).
 
+### Option B: Multiple Plan Options (when perspectives diverge)
+
+Generate 2-3 alternative plans, each complete and implementable:
+- **Plan A (Conservative)**: Based primarily on Bold proposal with Proposal-Reducer simplifications. Minimal changes, lower risk.
+- **Plan B (Balanced)**: Hybrid approach incorporating elements from both proposals. Middle ground.
+- **Plan C (Aggressive)**: Based primarily on Paranoia proposal with Code-Reducer optimizations. Maximum refactoring, higher reward/risk.
+
+Each plan should follow the same structure as the single consensus plan.
+
 ```markdown
 # Implementation Plan: {{FEATURE_NAME}}
 
+## Consensus Status
+
+**Consensus achieved**: [Yes/No]
+**Reason**: [If No, explain why perspectives diverge significantly]
+**Plans provided**: [1 if consensus, 2-3 if divergent]
+
 ## Consensus Summary
 
-[2-3 sentences explaining the balanced approach chosen]
+[2-3 sentences explaining the balanced approach chosen, or why multiple plans are needed]
 
 ## Goal
 [1-2 sentence problem statement]
@@ -61,7 +86,7 @@ Generate a final implementation plan that follows the plan-guideline structure a
 **Out of scope:**
 - [What we're not doing]
 - However, it it a good idea for future work?
-  - If so, briefly describe it here. ✅ Good to have in the future: Briefly describe it in 1-2 sentences. 
+  - If so, briefly describe it here. ✅ Good to have in the future: Briefly describe it in 1-2 sentences.
   - If not, explain why it's excluded. ❌ Not needed: Explain why it is a bad idea.
 
 ## Bug Reproduction
@@ -100,7 +125,7 @@ Generate a final implementation plan that follows the plan-guideline structure a
 | `path/to/file1` | major | Significant changes description |
 | `path/to/file2` | medium | Moderate changes description |
 | `path/to/file3` | minor | Small changes description |
-| `path/to/new/file` (new) | major | New file purpose (Est: X LOC) |
+| `path/to/new/file` (new) | major | New file purpose |
 | `path/to/deprecated/file` | remove | Reason for removal |
 
 **Modification level definitions:**
@@ -191,7 +216,7 @@ Each document modifications should be as details as using `diff` format:
   - Test case: Description
 
 **New test files:**
-- `test/new_file` - Purpose (Estimated: X LOC)
+- `test/new_file` - Purpose
   - Test case: Description
   - Test case: Description
 
@@ -200,42 +225,67 @@ Each document modifications should be as details as using `diff` format:
 
 ## Implementation Steps
 
-**Step 1: [Documentation change]** (Estimated: X LOC)
-- File changes
+**Step 1: [Documentation change]**
+- File changes with code diffs:
+```diff
+- old content
++ new content
+```
 Dependencies: None
 Correspondence:
 - Docs: [What this step adds/updates]
 - Tests: [N/A or what this enables]
 
-**Step 2: [Test case changes]** (Estimated: X LOC)
-- File changes
+**Step 2: [Test case changes]**
+- File changes with code diffs:
+```diff
++ new test content
+```
 Dependencies: Step 1
 Correspondence:
 - Docs: [Which doc changes define these tests]
 - Tests: [New/updated cases introduced here]
 
-**Step 3: [Implementation change]** (Estimated: X LOC)
-- File changes
+**Step 3: [Implementation change]**
+- File changes with code diffs:
+```diff
+- old implementation
++ new implementation
+```
 Dependencies: Step 2
 Correspondence:
 - Docs: [Which doc behaviors are implemented here]
 - Tests: [Which test cases this step satisfies]
 
-If is preffered to put some implementation snippets here, if it is less than 20 LoC, use this format:
-\`\`\`diff
-- the code to be modified
-+ the modified code
-\`\`\`
-where gives plan reviewer a quick idea of the implementation.
-
 ...
 
-**Total estimated complexity:** X LOC ([Complexity level])
 **Recommended approach:** [Single session / Milestone commits]
 **Milestone strategy** *(only if large)*:
 - **M1**: [What to complete in milestone 1]
 - **M2**: [What to complete in milestone 2]
 - **Delivery**: [Final deliverable]
+
+## Key Decisions from Agents
+
+**From Bold Proposer:**
+- [What was accepted and why]
+- [What was rejected and why]
+
+**From Paranoia Proposer:**
+- [What was accepted and why]
+- [What was rejected and why]
+
+**From Critique:**
+- [Risks addressed]
+- [Risks accepted with mitigation]
+
+**From Proposal Reducer:**
+- [Simplifications applied]
+- [Simplifications rejected and why]
+
+**From Code Reducer:**
+- [Code reductions applied]
+- [Growth accepted and why]
 
 ## Success Criteria
 
@@ -255,20 +305,79 @@ where gives plan reviewer a quick idea of the implementation.
 [Any external dependencies or requirements]
 ```
 
+### Multiple Plans Template (when consensus not achieved)
+
+If perspectives diverge significantly, use this structure:
+
+```markdown
+# Implementation Plans: {{FEATURE_NAME}}
+
+## Consensus Status
+
+**Consensus achieved**: No
+**Reason**: [Explain why Bold and Paranoia approaches are fundamentally incompatible]
+**Plans provided**: [2 or 3]
+
+---
+
+# Plan A: Conservative (Minimal Changes)
+
+## Summary
+[Based primarily on Bold proposal with Proposal-Reducer simplifications]
+
+[Full plan structure as above...]
+
+---
+
+# Plan B: Balanced (Middle Ground)
+
+## Summary
+[Hybrid approach incorporating elements from both proposals]
+
+[Full plan structure as above...]
+
+---
+
+# Plan C: Aggressive (Maximum Refactoring)
+
+## Summary
+[Based primarily on Paranoia proposal with Code-Reducer optimizations]
+
+[Full plan structure as above...]
+
+---
+
+## Recommendation
+
+**Suggested plan**: [A/B/C]
+**Rationale**: [Why this plan is recommended based on risk/reward analysis]
+
+**When to choose Plan A:**
+- [Conditions favoring conservative approach]
+
+**When to choose Plan B:**
+- [Conditions favoring balanced approach]
+
+**When to choose Plan C:**
+- [Conditions favoring aggressive approach]
+```
+
 ## Evaluation Criteria
 
-Your consensus plan should:
+Your consensus plan(s) should:
 
-✅ **Be balanced**: Not too bold, not too conservative
+✅ **Be balanced**: Not too bold, not too conservative (unless multiple plans provided)
 ✅ **Be practical**: Implementable with available tools/time
 ✅ **Be complete**: Include all essential components
-✅ **Be clear**: Unambiguous implementation steps
+✅ **Be clear**: Unambiguous implementation steps with code diffs
 ✅ **Address risks**: Mitigate critical concerns from critique
-✅ **Stay simple**: Remove unnecessary complexity per reducer
-✅ **Correct measurement**: Use LOC estimates only; no time-based estimates
+✅ **Stay simple**: Remove unnecessary complexity per reducers
+✅ **Use code diffs**: Show concrete changes, not just LOC estimates
 ✅ **Accurate modification levels**: Every file must have correct level (minor/medium/major/remove)
+✅ **Provide choice**: When perspectives diverge, give multiple plan options
 
 ❌ **Avoid**: Over-engineering, ignoring risks, excessive scope creep, vague specifications, or "audit the codebase" steps
+❌ **Avoid**: Forcing consensus when Bold and Paranoia approaches are fundamentally incompatible
 
 ## Final Privacy Note
 

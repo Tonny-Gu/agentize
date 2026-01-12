@@ -13,14 +13,19 @@ graph TD
     A[User provides requirements] --> B[Create placeholder issue]
     B --> B2[doc-architect: Generate diff previews]
     B2 --> U[Understander: Gather codebase context]
-    U --> C[Bold-proposer: Research SOTA & propose innovation]
+    U --> C[Bold-proposer: Incremental improvement with diffs]
+    U --> P[Paranoia-proposer: Destructive refactoring with diffs]
     C --> D
     C --> E
-    D[Critique: Validate assumptions & feasibility] --> F
-    E[Reducer: Simplify following 'less is more'] --> F
-    C --> F
-    F[Combined 3-perspective report] --> G
-    G[External consensus: Synthesize plan with diffs] --> H[Update issue with consensus plan]
+    C --> E2
+    P --> D
+    P --> E
+    P --> E2
+    D[Critique: Validate both proposals] --> F
+    E[Proposal-Reducer: Minimize changes] --> F
+    E2[Code-Reducer: Limit code growth] --> F
+    F[Combined 5-perspective report] --> G
+    G[External consensus: Synthesize plan(s)] --> H[Update issue with consensus plan(s)]
     H --> I{User reviews plan}
     I -->|Refine| J["/ultra-planner --refine"]
     J --> U
@@ -33,8 +38,10 @@ graph TD
     style B2 fill:#ccddff
     style U fill:#ccddff
     style C fill:#ccddff
+    style P fill:#ccddff
     style D fill:#ccddff
     style E fill:#ccddff
+    style E2 fill:#ccddff
     style F fill:#ccddff
     style G fill:#ccddff
     style H fill:#ccddff
@@ -62,9 +69,10 @@ Title: [plan][feat] Add user authentication
 URL: https://github.com/user/repo/issues/42
 
 Running multi-agent debate...
-[Bold proposer, Critique, Reducer agents execute]
+[Bold proposer, Paranoia proposer run in parallel]
+[Critique, Proposal-reducer, Code-reducer analyze both proposals]
 
-Issue #42 updated with consensus plan.
+Issue #42 updated with consensus plan(s).
 
 To refine: /ultra-planner --refine 42
 To implement: /issue-to-impl 42
@@ -199,26 +207,26 @@ After reviewing a plan issue:
 
 ### Ultra-Planner Initial Run
 
-**Duration:** 6-12 minutes end-to-end
+**Duration:** 8-15 minutes end-to-end
 
 **Breakdown:**
 - Understander agent: 1-2 minutes (codebase exploration)
-- Bold-proposer agent: 2-3 minutes (research + proposal, with context)
-- Critique + Reducer agents (parallel): 2-3 minutes
+- Bold-proposer + Paranoia-proposer agents (parallel): 3-5 minutes (research + proposals with code diffs)
+- Critique + Proposal-reducer + Code-reducer agents (parallel): 2-4 minutes
 - External consensus review: 1-2 minutes
 - Draft issue creation: <10 seconds
 
-**Cost:** ~$2.50-6 per planning session (1 Sonnet + 3 Opus agents + 1 external review)
+**Cost:** ~$4-8 per planning session (1 Sonnet + 5 Opus agents + 1 external review)
 
 ### Refinement Run (--refine mode)
 
-**Duration:** 6-12 minutes end-to-end (same as initial run)
+**Duration:** 8-15 minutes end-to-end (same as initial run)
 
 **Breakdown:**
 - Same agent execution times as ultra-planner (includes understander)
 - Issue fetch/update: <5 seconds
 
-**Cost:** ~$2.50-6 per refinement (same as initial planning)
+**Cost:** ~$4-8 per refinement (same as initial planning)
 
 ## Lifecycle States
 

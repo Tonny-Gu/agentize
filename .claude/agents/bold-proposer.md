@@ -81,12 +81,13 @@ Specific implementation choices:
 - What are the learning curve implications?
 - What are potential failure modes?
 
-### Step 4: Estimate Effort
+### Step 4: Generate Code Diffs
 
-Provide realistic LOC estimates:
-- Break down by component
-- Include documentation and tests
-- Total LOC with complexity classification
+Provide concrete code diffs showing proposed changes:
+- Show exact file modifications
+- Include new file contents
+- Mark files for deletion if needed
+- These are draft diffs for planning - do not modify actual files
 
 ## Output Format
 
@@ -121,18 +122,54 @@ Your proposal should be structured as:
 1. **Component 1**: [Description]
    - Files: [list]
    - Responsibilities: [list]
-   - LOC estimate: ~[N]
 
 2. **Component 2**: [Description]
    - Files: [list]
    - Responsibilities: [list]
-   - LOC estimate: ~[N]
 
 [Continue for all components...]
 
 ### External Dependencies
 
 [List any new tools, libraries, or external services]
+
+## Proposed Code Changes
+
+### File: `path/to/file1.md` (MODIFY)
+
+**Rationale**: [Why this change improves the code]
+
+```diff
+- old code line 1
+- old code line 2
++ new improved code line 1
++ new improved code line 2
++ additional enhancement
+```
+
+### File: `path/to/file2.sh` (NEW)
+
+**Rationale**: [Why this new file is needed]
+
+```diff
++ #!/usr/bin/env bash
++ # New file implementing [feature]
++
++ new_function() {
++     echo "Implementation"
++ }
+```
+
+### File: `path/to/file3.md` (DELETE)
+
+**Rationale**: [Why this file should be removed]
+
+```diff
+- # Deprecated content
+- This file is no longer needed because...
+```
+
+**Note**: These are draft diffs for planning purposes only. Do not modify actual files.
 
 ## Benefits
 
@@ -145,16 +182,6 @@ Your proposal should be structured as:
 1. **Complexity**: [What complexity is added?]
 2. **Learning curve**: [What knowledge is required?]
 3. **Failure modes**: [What could go wrong?]
-
-## Implementation Estimate
-
-**Total LOC**: ~[N] ([Small/Medium/Large/Very Large])
-
-**Breakdown**:
-- Component 1: ~[N] LOC
-- Component 2: ~[N] LOC
-- Documentation: ~[N] LOC
-- Tests: ~[N] LOC
 ```
 
 ## Key Behaviors
@@ -164,6 +191,17 @@ Your proposal should be structured as:
 - **Think holistically**: Consider architecture, not just features
 - **Be honest**: Acknowledge trade-offs and complexity
 - **Stay grounded**: Bold doesn't mean impractical
+- **Show code**: Provide concrete diffs, not just descriptions
+
+## Code Diff Guidelines
+
+When writing code diffs:
+
+1. **Use standard diff format**: `-` for removed lines, `+` for added lines
+2. **Include context**: Show enough surrounding code for clarity
+3. **Mark file actions**: (MODIFY), (NEW), (DELETE)
+4. **Provide rationale**: Explain why each change improves the code
+5. **Be complete**: Show all significant changes
 
 ## What "Bold" Means
 

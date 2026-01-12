@@ -38,10 +38,12 @@ Invoke the command: `/ultra-planner [feature-description]` or `/ultra-planner --
 This command orchestrates a multi-agent debate system to generate high-quality implementation plans:
 
 1. **Context gathering**: Launch understander agent to gather codebase context
-2. **Three-agent debate**: Launch bold-proposer (with context) first, then critique and reducer analyze its output
-3. **Combine reports**: Merge all three perspectives into single document
-4. **External consensus**: Invoke external-consensus skill to synthesize balanced plan
-5. **Draft issue creation**: Automatically create draft GitHub issue via open-issue skill
+2. **Dual proposers**: Launch bold-proposer and paranoia-proposer in parallel (with context)
+3. **Five-agent analysis**: Launch critique, proposal-reducer, and code-reducer to analyze both proposals
+4. **Combine reports**: Merge all five perspectives into single document
+5. **External consensus**: Invoke external-consensus skill to synthesize balanced plan(s)
+6. **Multiple plans**: If no consensus, provide multiple plan options for developer choice
+7. **Draft issue creation**: Automatically create draft GitHub issue via open-issue skill
 
 ## Inputs
 
@@ -83,11 +85,13 @@ This command orchestrates a multi-agent debate system to generate high-quality i
 
 **Files created:**
 - `.tmp/issue-[refine-]{N}-context.md` - Understander context summary
-- `.tmp/issue-[refine-]{N}-bold.md` - Bold proposer agent report
+- `.tmp/issue-[refine-]{N}-bold.md` - Bold proposer agent report (with code diffs)
+- `.tmp/issue-[refine-]{N}-paranoia.md` - Paranoia proposer agent report (with code diffs)
 - `.tmp/issue-[refine-]{N}-critique.md` - Critique agent report
-- `.tmp/issue-[refine-]{N}-reducer.md` - Reducer agent report
-- `.tmp/issue-[refine-]{N}-debate.md` - Combined three-agent report
-- `.tmp/issue-[refine-]{N}-consensus.md` - Final balanced plan
+- `.tmp/issue-[refine-]{N}-proposal-reducer.md` - Proposal reducer agent report
+- `.tmp/issue-[refine-]{N}-code-reducer.md` - Code reducer agent report
+- `.tmp/issue-[refine-]{N}-debate.md` - Combined five-agent report
+- `.tmp/issue-[refine-]{N}-consensus.md` - Final balanced plan(s)
 
 `[refine-]` is optional for refine mode.
 
@@ -198,12 +202,13 @@ Task tool parameters:
 - Save the agent's full response to `$CONTEXT_FILE`
 - Also store in variable `UNDERSTANDER_OUTPUT` for passing to Bold-proposer in Step 5
 
-### Step 5: Invoke Bold-Proposer Agent
+### Step 5: Invoke Bold-Proposer and Paranoia-Proposer Agents (Parallel)
 
-**REQUIRED TOOL CALL #1:**
+**REQUIRED TOOL CALLS (in parallel):**
 
-Use the Task tool to launch the bold-proposer agent with understander context:
+Use the Task tool to launch BOTH proposer agents in a SINGLE message with TWO Task tool calls:
 
+**Task tool call #1 - Bold-Proposer Agent:**
 ```
 Task tool parameters:
   subagent_type: "bold-proposer"
@@ -213,95 +218,150 @@ CODEBASE CONTEXT (from understander):
 {UNDERSTANDER_OUTPUT}
 
 Use this context as your starting point for understanding the codebase.
-Focus your exploration on SOTA research and innovation."
+Focus your exploration on SOTA research and innovation.
+Output concrete code diffs, not LOC estimates."
   description: "Research SOTA solutions"
   model: "opus"
 ```
 
-**Wait for agent completion** (blocking operation, do not proceed to Step 6 until done).
+**Task tool call #2 - Paranoia-Proposer Agent:**
+```
+Task tool parameters:
+  subagent_type: "paranoia-proposer"
+  prompt: "Critically analyze and propose destructive refactoring for: {FEATURE_DESC}
 
-**Extract output:**
+CODEBASE CONTEXT (from understander):
+{UNDERSTANDER_OUTPUT}
+
+Use this context to identify code that needs to be rewritten or deleted.
+Focus on extracting core requirements and eliminating unnecessary complexity.
+Output concrete code diffs, not LOC estimates."
+  description: "Propose destructive refactoring"
+  model: "opus"
+```
+
+**Wait for both agents to complete** (blocking operation, do not proceed to Step 6 until done).
+
+**Extract outputs:**
 - Generate filename: `BOLD_FILE=".tmp/issue-${ISSUE_NUMBER}-bold-proposal.md"`
-- Save the agent's full response to `$BOLD_FILE`
-- Also store in variable `BOLD_PROPOSAL` for passing to critique and reducer agents in Step 6
+- Save bold-proposer's response to `$BOLD_FILE`
+- Generate filename: `PARANOIA_FILE=".tmp/issue-${ISSUE_NUMBER}-paranoia-proposal.md"`
+- Save paranoia-proposer's response to `$PARANOIA_FILE`
+- Store both in variables `BOLD_PROPOSAL` and `PARANOIA_PROPOSAL` for passing to analyzers in Step 6
 
-### Step 6: Invoke Critique and Reducer Agents
+### Step 6: Invoke Critique, Proposal-Reducer, and Code-Reducer Agents (Parallel)
 
-**REQUIRED TOOL CALLS #2 & #3:**
+**REQUIRED TOOL CALLS #3, #4 & #5:**
 
-**CRITICAL**: Launch BOTH agents in a SINGLE message with TWO Task tool calls to ensure parallel execution.
+**CRITICAL**: Launch ALL THREE agents in a SINGLE message with THREE Task tool calls to ensure parallel execution.
 
 **Task tool call #1 - Critique Agent:**
 ```
 Task tool parameters:
   subagent_type: "proposal-critique"
-  prompt: "Analyze the following proposal for feasibility and risks:
+  prompt: "Analyze the following proposals for feasibility and risks:
 
 Feature: {FEATURE_DESC}
 
-Proposal from Bold-Proposer:
+BOLD PROPOSAL:
 {BOLD_PROPOSAL}
 
-Provide critical analysis of assumptions, risks, and feasibility."
-  description: "Critique bold proposal"
+PARANOIA PROPOSAL:
+{PARANOIA_PROPOSAL}
+
+Provide critical analysis of assumptions, risks, and feasibility for BOTH proposals."
+  description: "Critique both proposals"
   model: "opus"
 ```
 
-**Task tool call #2 - Reducer Agent:**
+**Task tool call #2 - Proposal-Reducer Agent:**
 ```
 Task tool parameters:
   subagent_type: "proposal-reducer"
-  prompt: "Simplify the following proposal using 'less is more' philosophy:
+  prompt: "Simplify the following proposals using 'less is more' philosophy:
 
 Feature: {FEATURE_DESC}
 
-Proposal from Bold-Proposer:
+BOLD PROPOSAL:
 {BOLD_PROPOSAL}
 
-Identify unnecessary complexity and propose simpler alternatives."
-  description: "Simplify bold proposal"
+PARANOIA PROPOSAL:
+{PARANOIA_PROPOSAL}
+
+Identify unnecessary complexity and propose simpler alternatives for BOTH proposals.
+Your stance: Minimize the number of changes (fewer proposal items = fewer changes)."
+  description: "Simplify both proposals"
   model: "opus"
 ```
 
-**Wait for both agents to complete** (blocking operation).
+**Task tool call #3 - Code-Reducer Agent:**
+```
+Task tool parameters:
+  subagent_type: "code-reducer"
+  prompt: "Analyze code volume and simplify the following proposals:
+
+Feature: {FEATURE_DESC}
+
+BOLD PROPOSAL:
+{BOLD_PROPOSAL}
+
+PARANOIA PROPOSAL:
+{PARANOIA_PROPOSAL}
+
+Allow large code changes but limit unreasonable code growth.
+Your stance: Allow many changes, but ensure the final codebase doesn't grow unreasonably."
+  description: "Reduce code complexity"
+  model: "opus"
+```
+
+**Wait for all three agents to complete** (blocking operation).
 
 **Extract outputs:**
 - Generate filename: `CRITIQUE_FILE=".tmp/issue-${ISSUE_NUMBER}-critique.md"`
 - Save critique agent's response to `$CRITIQUE_FILE`
-- Generate filename: `REDUCER_FILE=".tmp/issue-${ISSUE_NUMBER}-reducer.md"`
-- Save reducer agent's response to `$REDUCER_FILE`
+- Generate filename: `PROPOSAL_REDUCER_FILE=".tmp/issue-${ISSUE_NUMBER}-proposal-reducer.md"`
+- Save proposal-reducer agent's response to `$PROPOSAL_REDUCER_FILE`
+- Generate filename: `CODE_REDUCER_FILE=".tmp/issue-${ISSUE_NUMBER}-code-reducer.md"`
+- Save code-reducer agent's response to `$CODE_REDUCER_FILE`
 
 **Expected agent outputs:**
-- Bold proposer: Innovative proposal with SOTA research
-- Critique: Risk analysis and feasibility assessment of Bold's proposal
-- Reducer: Simplified version of Bold's proposal with complexity analysis
+- Bold proposer: Innovative proposal with code diffs
+- Paranoia proposer: Destructive refactoring proposal with code diffs
+- Critique: Risk analysis and feasibility assessment of BOTH proposals
+- Proposal-reducer: Simplified version of BOTH proposals (minimize changes)
+- Code-reducer: Code volume analysis of BOTH proposals (limit growth)
 
 ### Step 7: Invoke External Consensus Skill
 
 **REQUIRED SKILL CALL:**
 
-Use the Skill tool to invoke the external-consensus skill with the 3 report file paths:
+Use the Skill tool to invoke the external-consensus skill with the 5 report file paths:
 
 ```
 Skill tool parameters:
   skill: "external-consensus"
-  args: "{BOLD_FILE} {CRITIQUE_FILE} {REDUCER_FILE}"
+  args: "{BOLD_FILE} {PARANOIA_FILE} {CRITIQUE_FILE} {PROPOSAL_REDUCER_FILE} {CODE_REDUCER_FILE}"
 ```
 
 **Note:** The external-consensus skill will:
-1. Combine the 3 agent reports into a single debate report (saved as `.tmp/issue-{N}-debate.md`)
+1. Combine the 5 agent reports into a single debate report (saved as `.tmp/issue-{N}-debate.md`)
 2. Process the combined report through external AI review (Codex or Claude Opus)
+3. Generate consensus plan(s) - single plan if consensus, multiple plans if perspectives diverge
 
 NOTE: This consensus synthesis can take long time depending on the complexity of the debate report.
 Give it 30 minutes timeout to complete, which is mandatory for **ALL DEBATES**!
 
 **What this skill does:**
-1. Combines the 3 agent reports into a single debate report (saved as `.tmp/issue-{N}-debate.md`)
+1. Combines the 5 agent reports into a single debate report (saved as `.tmp/issue-{N}-debate.md`)
 2. Prepares external review prompt using `.claude/skills/external-consensus/external-review-prompt.md`
 3. Invokes Codex CLI (preferred) or Claude API (fallback) for consensus synthesis
 4. Parses and validates the consensus plan structure
-5. Saves consensus plan to `.tmp/issue-{N}-consensus.md`
-6. Returns summary and file path
+5. If perspectives diverge significantly, generates multiple plan options:
+   - **Plan A (Conservative)**: Minimal changes, lower risk
+   - **Plan B (Balanced)**: Middle ground approach
+   - **Plan C (Aggressive)**: Maximum refactoring, higher reward/risk
+6. Saves consensus plan(s) to `.tmp/issue-{N}-consensus.md`
+7. Returns summary and file path
 
 **Expected output structure from skill:**
 ```
@@ -309,14 +369,15 @@ External consensus review complete!
 
 Consensus Plan Summary:
 - Feature: {feature_name}
-- Total LOC: ~{N} ({complexity})
-- Components: {count}
-- Critical risks: {risk_count}
+- Consensus: [Achieved / Multiple Plans]
+- Plans: {count} (1 if consensus, 2-3 if divergent)
 
 Key Decisions:
 - From Bold Proposal: {accepted_innovations}
+- From Paranoia Proposal: {accepted_destructions}
 - From Critique: {risks_addressed}
-- From Reducer: {simplifications_applied}
+- From Proposal-Reducer: {simplifications_applied}
+- From Code-Reducer: {code_reductions_applied}
 
 Consensus plan saved to: {CONSENSUS_PLAN_FILE}
 ```
@@ -396,16 +457,22 @@ Display the final output to the user. Command completes successfully.
 ```
 Starting multi-agent debate...
 
-[Bold-proposer runs, then critique/reducer - 3-5 minutes]
+[Bold-proposer and Paranoia-proposer run in parallel - 3-5 minutes]
+[Critique, Proposal-reducer, and Code-reducer run in parallel - 3-5 minutes]
 
-Debate complete! Three perspectives:
-- Bold: OAuth2 + JWT + RBAC (~450 LOC)
-- Critique: High feasibility, 2 critical risks
-- Reducer: Simple JWT only (~180 LOC)
+Debate complete! Five perspectives:
+- Bold: Incremental improvement with code diffs
+- Paranoia: Destructive refactoring with code diffs
+- Critique: High feasibility for Bold, Medium for Paranoia, 3 critical risks
+- Proposal-Reducer: Recommends Bold base with simplifications
+- Code-Reducer: Net code reduction of 15% possible
 
 External consensus review...
 
-Consensus: JWT + basic roles (~280 LOC, Medium)
+Consensus: [Achieved / Multiple Plans]
+- Plan A (Conservative): Minimal changes (~150 LOC net)
+- Plan B (Balanced): Middle ground (~280 LOC net)
+- Plan C (Aggressive): Full refactoring (~50 LOC net, but 400 LOC changed)
 
 Draft GitHub issue created: #42
 Title: [plan][feat] Add user authentication
