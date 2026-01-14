@@ -11,49 +11,103 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 IMAGE_NAME="agentize-sandbox"
 
-# Determine container name (first positional argument, if not starting with -)
-CONTAINER_NAME="${1:-agentize-runner}"
-if [[ "$CONTAINER_NAME" != -* ]]; then
-    shift
+# Determine if running interactively (has TTY and not piping)
+if [ -t 0 ] && [ -t 1 ]; then
+    INTERACTIVE_FLAGS="-it"
 else
+    INTERACTIVE_FLAGS="-t"
+fi
+
+# Build docker command as array to avoid shell injection issues
+DOCKER_ARGS=(
+    "run"
+    "--rm"
+    $INTERACTIVE_FLAGS
+)
+
+# Parse arguments: docker flags before --, then container name/image args after --
+DOCKER_FLAGS=()
+CONTAINER_ARGS=()
+SEEN_DASH_DASH=0
+while [[ $# -gt 0 ]]; do
+    if [[ "$1" == "--" ]]; then
+        SEEN_DASH_DASH=1
+        shift
+        continue
+    fi
+
+    if [[ $SEEN_DASH_DASH -eq 0 ]]; then
+        # Before --: docker flags or container name
+        case "$1" in
+            --entrypoint=*)
+                DOCKER_ARGS+=("$1")
+                shift
+                ;;
+            --entrypoint)
+                DOCKER_ARGS+=("$1" "$2")
+                shift 2
+                ;;
+            -*)
+                # Other docker flags
+                DOCKER_ARGS+=("$1")
+                shift
+                ;;
+            *)
+                # First non-flag argument is container name
+                if [ -z "$CONTAINER_NAME" ]; then
+                    CONTAINER_NAME="$1"
+                fi
+                shift
+                ;;
+        esac
+    else
+        # After --: arguments to container
+        CONTAINER_ARGS+=("$1")
+        shift
+    fi
+done
+
+# Set default container name if not provided
+if [ -z "$CONTAINER_NAME" ]; then
     CONTAINER_NAME="agentize-runner"
 fi
 
-# Build volume mounts
-VOLUMES=()
+DOCKER_ARGS+=("--name" "$CONTAINER_NAME")
 
 # 1. Passthrough claude-code-router config if exists
 CCR_CONFIG="$HOME/.claude-code-router/config.json"
 if [ -f "$CCR_CONFIG" ]; then
-    VOLUMES+=("-v $CCR_CONFIG:/home/agentizer/.claude-code-router/config.json:ro")
+    DOCKER_ARGS+=("-v" "$CCR_CONFIG:/home/agentizer/.claude-code-router/config.json:ro")
 fi
 
 # 2. Passthrough GitHub CLI credentials
 GH_CONFIG="$HOME/.config/gh"
 if [ -d "$GH_CONFIG" ]; then
-    VOLUMES+=("-v $GH_CONFIG:/home/agentizer/.config/gh:ro")
+    DOCKER_ARGS+=("-v" "$GH_CONFIG:/home/agentizer/.config/gh:ro")
 fi
 
 # 3. Passthrough git credentials (if exists)
 GIT_CREDS="$HOME/.git-credentials"
 if [ -f "$GIT_CREDS" ]; then
-    VOLUMES+=("-v $GIT_CREDS:/home/agentizer/.git-credentials:ro")
+    DOCKER_ARGS+=("-v" "$GIT_CREDS:/home/agentizer/.git-credentials:ro")
 fi
 GIT_CONFIG="$HOME/.gitconfig"
 if [ -f "$GIT_CONFIG" ]; then
-    VOLUMES+=("-v $GIT_CONFIG:/home/agentizer/.gitconfig:ro")
+    DOCKER_ARGS+=("-v" "$GIT_CONFIG:/home/agentizer/.gitconfig:ro")
 fi
 
 # 4. Passthrough agentize project directory
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-VOLUMES+=("-v $PROJECT_DIR:/workspace/agentize")
+DOCKER_ARGS+=("-v" "$PROJECT_DIR:/workspace/agentize")
 
-# Run docker with all configurations
-docker run \
-    --name "$CONTAINER_NAME" \
-    --rm \
-    -it \
-    "${VOLUMES[@]}" \
-    -w /workspace/agentize \
-    "$IMAGE_NAME" \
-    "$@"
+# Add working directory and image
+DOCKER_ARGS+=("-w" "/workspace/agentize")
+DOCKER_ARGS+=("$IMAGE_NAME")
+
+# Append container arguments
+for arg in "${CONTAINER_ARGS[@]}"; do
+    DOCKER_ARGS+=("$arg")
+done
+
+# Execute docker run
+docker "${DOCKER_ARGS[@]}"
