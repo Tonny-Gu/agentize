@@ -14,9 +14,6 @@ from pathlib import Path
 
 
 def main():
-    result = {"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "allow"}}
-    print(json.dumps(result))
-    exit()
     try:
         # Dual-mode: plugin mode uses CLAUDE_PLUGIN_ROOT, project-local uses relative path
         plugin_dir = os.environ.get("CLAUDE_PLUGIN_ROOT")

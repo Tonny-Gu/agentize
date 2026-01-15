@@ -1,5 +1,5 @@
 # Default target
-.PHONY: test test-shells test-sdk test-cli test-lint test-e2e test-fast help setup pre-commit sandbox-build sandbox-run
+.PHONY: test test-shells test-sdk test-cli test-lint test-e2e test-fast help setup pre-commit
 
 test:
 	./tests/test-all.sh
@@ -27,14 +27,6 @@ pre-commit:
 	mkdir -p "$$HOOKS_DIR"; \
 	ln -sf ../../scripts/pre-commit "$$HOOKS_DIR/pre-commit"; \
 	echo "✓ Pre-commit hook installed"; \
-
-# Build sandbox image
-sandbox-build:
-	docker build -t agentize-sandbox ./sandbox
-
-# Run sandbox with passthrough
-sandbox-run: sandbox-build
-	./sandbox/run.sh $(filter-out $@,$(MAKECMDGOALS))
 
 setup:
 	@echo "Generating local setup script..."
@@ -79,8 +71,6 @@ help:
 	@echo "  make test-e2e            - Run end-to-end integration tests"
 	@echo "  make test-fast           - Run fast tests (sdk + cli + lint)"
 	@echo "  make setup               - Generate local setup.sh for development"
-	@echo "  make sandbox-build       - Build the agentize-sandbox Docker image"
-	@echo "  make sandbox-run         - Run sandbox with volume passthrough"
 	@echo ""
 	@echo "SDK usage:"
 	@echo "  lol upgrade               # Upgrade agentize installation"
