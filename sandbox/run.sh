@@ -115,11 +115,19 @@ DOCKER_ARGS+=("-v" "$PROJECT_DIR:/workspace/agentize")
 
 # When --cmd is provided, override entrypoint to run custom command
 if [ ${#CUSTOM_CMD[@]} -gt 0 ]; then
-    DOCKER_ARGS+=("--entrypoint=/bin/bash")
-    DOCKER_ARGS+=("-c")
-    # Join the command arguments into a single string
-    CMD_STRING=$(printf " %s" "${CUSTOM_CMD[@]}")
+    # Join the command arguments into a single string, wrapping each in single quotes
+    CMD_STRING=""
+    for arg in "${CUSTOM_CMD[@]}"; do
+        # Escape single quotes by replacing ' with '\''
+        escaped_arg="${arg//\'/\'\\\'\'}"
+        CMD_STRING+=" '$escaped_arg'"
+    done
     CMD_STRING=${CMD_STRING:1}  # Remove leading space
+
+    # Set entrypoint to /bin/bash, the command goes after image name
+    DOCKER_ARGS+=("--entrypoint=/bin/bash")
+    DOCKER_ARGS+=("$IMAGE_NAME")
+    DOCKER_ARGS+=("-c")
     DOCKER_ARGS+=("$CMD_STRING")
 else
     # Add working directory and image
