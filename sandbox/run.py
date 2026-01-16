@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 """
-Run agentize container with volume passthrough.
+Sandbox session manager with tmux-based worktree + container management.
 
-This script mounts external resources into the container:
-- ~/.claude-code-router/config.json -> /home/agentizer/.claude-code-router/config.json
-- ~/.config/gh -> /home/agentizer/.config/gh (GitHub CLI credentials, read-write for token refresh)
-- ~/.git-credentials -> /home/agentizer/.git-credentials
-- ~/.gitconfig -> /home/agentizer/.gitconfig
-- Current agentize project directory -> /workspace/agentize
-- GITHUB_TOKEN environment variable (if set)
+This script manages sandboxes that combine:
+- Git worktrees for isolated code branches
+- Persistent containers with tmux sessions
+- SQLite database for state tracking
+
+Subcommands:
+- new: Create new worktree + container
+- ls: List all sandboxes
+- rm: Delete worktree + container
+- attach: Attach to tmux session
 
 Container runtime is detected in priority order:
 1. Local config file (sandbox/agentize.toml or ./agentize.toml)
@@ -25,8 +28,10 @@ import os
 import platform
 import shlex
 import shutil
+import sqlite3
 import subprocess
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -48,6 +53,85 @@ BUILD_TRIGGER_FILES = [
     "install.sh",
     "entrypoint.sh",
 ]
+
+# Container naming prefix
+CONTAINER_PREFIX = "agentize-sb-"
+
+# Worktree directory name
+WORKTREE_DIR = ".wt"
+
+# Database file name
+DB_FILE = ".sandbox_db.sqlite"
+
+
+# =============================================================================
+# SQLite State Management
+# =============================================================================
+
+
+class SandboxDB:
+    """SQLite database for sandbox state management."""
+
+    def __init__(self, repo_base: Path):
+        self.db_path = repo_base / DB_FILE
+        self._init_db()
+
+    def _init_db(self):
+        """Initialize database schema."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS sandboxes (
+                    name TEXT PRIMARY KEY,
+                    branch TEXT NOT NULL,
+                    container_id TEXT,
+                    worktree_path TEXT NOT NULL,
+                    ccr_mode INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            conn.commit()
+
+    def create(self, name: str, branch: str, worktree_path: str, ccr_mode: bool = False) -> None:
+        """Create a new sandbox record."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                """INSERT INTO sandboxes (name, branch, worktree_path, ccr_mode)
+                   VALUES (?, ?, ?, ?)""",
+                (name, branch, worktree_path, 1 if ccr_mode else 0),
+            )
+            conn.commit()
+
+    def update_container_id(self, name: str, container_id: str) -> None:
+        """Update container ID for a sandbox."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute(
+                """UPDATE sandboxes SET container_id = ?, updated_at = ?
+                   WHERE name = ?""",
+                (container_id, datetime.now().isoformat(), name),
+            )
+            conn.commit()
+
+    def get(self, name: str) -> Optional[dict]:
+        """Get sandbox by name."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.execute("SELECT * FROM sandboxes WHERE name = ?", (name,))
+            row = cursor.fetchone()
+            return dict(row) if row else None
+
+    def list_all(self) -> list[dict]:
+        """List all sandboxes."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.execute("SELECT * FROM sandboxes ORDER BY created_at DESC")
+            return [dict(row) for row in cursor.fetchall()]
+
+    def delete(self, name: str) -> None:
+        """Delete a sandbox record."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("DELETE FROM sandboxes WHERE name = ?", (name,))
+            conn.commit()
 
 
 def get_container_runtime() -> str:
@@ -198,267 +282,416 @@ def ensure_image(runtime: str, context: Path) -> bool:
     return True
 
 
-def parse_arguments(argv=None):
-    """Parse command line arguments.
+# =============================================================================
+# Git Worktree Management
+# =============================================================================
 
-    Handles multiple argument patterns:
-    - ./run.py -- --help                    -> container_args=['--help']
-    - ./run.py --cmd bash                   -> custom_cmd=['bash']
-    - ./run.py --cmd bash -c "echo hello"   -> custom_cmd=['bash', '-c', 'echo hello']
-    - ./run.py my-container -- --help       -> container_name='my-container', container_args=['--help']
-    """
-    if argv is None:
-        argv = sys.argv[1:]
 
-    custom_cmd = []
-    container_args = []
+def validate_git_repo(repo_base: Path) -> bool:
+    """Validate that repo_base is a git repository."""
+    git_dir = repo_base / ".git"
+    return git_dir.exists()
 
-    # Extract custom_cmd (after --cmd) and container_args (after --)
-    i = 0
-    cmd_mode = False
-    dash_dash_mode = False
-    while i < len(argv):
-        arg = argv[i]
-        if arg == "--":
-            dash_dash_mode = True
-            i += 1
-            continue
-        if arg == "--cmd":
-            cmd_mode = True
-            i += 1
-            continue
 
-        if cmd_mode and not dash_dash_mode:
-            custom_cmd.append(arg)
-        elif dash_dash_mode:
-            container_args.append(arg)
-        i += 1
+def create_worktree(repo_base: Path, name: str, branch: str) -> Path:
+    """Create a git worktree for the sandbox."""
+    wt_dir = repo_base / WORKTREE_DIR
+    wt_dir.mkdir(exist_ok=True)
 
-    # Build filtered argv for argparse (remove --cmd and everything after it,
-    # and -- along with everything after it)
-    # Remove --cmd and any args that were captured as custom_cmd
-    filtered_argv = []
-    skip_rest = False
-    for arg in argv:
-        if skip_rest:
-            continue
-        if arg == "--cmd":
-            skip_rest = True
-            continue
-        if arg == "--":
-            # Skip -- and everything after it (those go to container_args)
-            break
-        filtered_argv.append(arg)
+    worktree_path = wt_dir / name
 
-    parser = argparse.ArgumentParser(
-        description="Run agentize container with volume passthrough.",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-    parser.add_argument(
-        "--cmd",
-        action="store_true",
-        help="Execute custom command instead of starting shell",
-    )
-    parser.add_argument(
-        "--ccr",
-        action="store_true",
-        help="Run in CCR mode (claude-code-router)",
-    )
-    parser.add_argument(
-        "--entrypoint",
-        metavar="COMMAND",
-        help="Override the default entrypoint",
-    )
-    parser.add_argument(
-        "--build",
-        action="store_true",
-        help="Force rebuild of the container image",
-    )
-    parser.add_argument(
-        "container_name",
-        nargs="?",
-        default="agentize_runner",
-        help="Container name (default: agentize_runner)",
+    # Create worktree
+    subprocess.run(
+        ["git", "-C", str(repo_base), "worktree", "add", str(worktree_path), branch],
+        check=True,
     )
 
-    parsed = parser.parse_args(filtered_argv)
-
-    # If custom_cmd was provided via --cmd, use it
-    if custom_cmd:
-        parsed.cmd = True
-
-    return parsed, container_args, custom_cmd
+    return worktree_path
 
 
-def parse_container_args(argv):
-    """Parse arguments after -- separator."""
-    container_args = []
-    custom_cmd = []
-    seen_cmd = False
+def remove_worktree(repo_base: Path, name: str) -> None:
+    """Remove a git worktree."""
+    worktree_path = repo_base / WORKTREE_DIR / name
 
-    i = 0
-    while i < len(argv):
-        arg = argv[i]
-        if arg == "--cmd":
-            seen_cmd = True
-            i += 1
-            continue
-
-        if seen_cmd:
-            custom_cmd.append(arg)
-        else:
-            container_args.append(arg)
-        i += 1
-
-    return container_args, custom_cmd
+    if worktree_path.exists():
+        subprocess.run(
+            ["git", "-C", str(repo_base), "worktree", "remove", str(worktree_path), "--force"],
+            check=True,
+        )
 
 
-def build_run_command(
+# =============================================================================
+# Container Management
+# =============================================================================
+
+
+def get_container_name(name: str) -> str:
+    """Get container name from sandbox name."""
+    return f"{CONTAINER_PREFIX}{name}"
+
+
+def get_uid_gid_args(runtime: str) -> list[str]:
+    """Get UID/GID mapping arguments for the container runtime."""
+    if runtime == "podman":
+        return ["--userns=keep-id"]
+    else:
+        # Docker
+        uid = os.getuid()
+        gid = os.getgid()
+        return ["--user", f"{uid}:{gid}"]
+
+
+def container_exists(runtime: str, container_name: str) -> bool:
+    """Check if a container exists."""
+    try:
+        result = subprocess.run(
+            [runtime, "container", "inspect", container_name],
+            capture_output=True,
+        )
+        return result.returncode == 0
+    except Exception:
+        return False
+
+
+def container_running(runtime: str, container_name: str) -> bool:
+    """Check if a container is running."""
+    try:
+        result = subprocess.run(
+            [runtime, "container", "inspect", "-f", "{{.State.Running}}", container_name],
+            capture_output=True,
+            text=True,
+        )
+        return result.returncode == 0 and result.stdout.strip() == "true"
+    except Exception:
+        return False
+
+
+def start_container(runtime: str, container_name: str) -> bool:
+    """Start a stopped container."""
+    try:
+        subprocess.run([runtime, "start", container_name], check=True)
+        return True
+    except subprocess.CalledProcessError:
+        return False
+
+
+def stop_container(runtime: str, container_name: str) -> bool:
+    """Stop a running container."""
+    try:
+        subprocess.run([runtime, "stop", container_name], check=True, capture_output=True)
+        return True
+    except subprocess.CalledProcessError:
+        return False
+
+
+def remove_container(runtime: str, container_name: str) -> bool:
+    """Remove a container."""
+    try:
+        subprocess.run([runtime, "rm", "-f", container_name], check=True, capture_output=True)
+        return True
+    except subprocess.CalledProcessError:
+        return False
+
+
+def create_sandbox_container(
     runtime: str,
     container_name: str,
-    is_interactive: bool,
-    use_ccr: bool,
-    use_cmd: bool,
-    custom_cmd: list[str],
-    container_args: list[str],
-    entrypoint: Optional[str],
-) -> list[str]:
-    """Build the container run command."""
-    cmd = [runtime, "run", "--rm"]
+    worktree_path: Path,
+    ccr_mode: bool,
+) -> str:
+    """Create and start a persistent sandbox container with tmux."""
+    cmd = [runtime, "run", "-d"]  # Detached mode, no --rm
 
-    # Interactive mode detection
-    if is_interactive:
-        cmd.extend(["-it"])
-    else:
-        cmd.append("-t")
+    # Interactive mode for tmux
+    cmd.extend(["-it"])
 
     # Container name
     cmd.extend(["--name", container_name])
 
+    # UID/GID mapping
+    cmd.extend(get_uid_gid_args(runtime))
+
     # Volume mounts
     home = Path.home()
 
-    # Note: For NFS home directories where host UID doesn't match container UID,
-    # you may need to use the :U flag with Podman (user namespace remapping).
-    # This is not enabled by default as it may have security implications.
-    # To enable, change the line below to: userns_flag = ":U" if is_podman else ""
-    userns_flag = ""
-
-    # 1. claude-code-router config (mounted to both config.json and config-router.json)
+    # CCR config
     ccr_config = home / ".claude-code-router" / "config.json"
     if ccr_config.exists():
-        cmd.extend(["-v", f"{ccr_config}:/home/agentizer/.claude-code-router/config.json:ro{userns_flag}"])
-        cmd.extend(["-v", f"{ccr_config}:/home/agentizer/.claude-code-router/config-router.json:ro{userns_flag}"])
+        cmd.extend(["-v", f"{ccr_config}:/home/agentizer/.claude-code-router/config.json:ro"])
+        cmd.extend(["-v", f"{ccr_config}:/home/agentizer/.claude-code-router/config-router.json:ro"])
 
-    # 2. GitHub CLI credentials (mount individual files for proper permission handling)
+    # GitHub CLI credentials
     gh_config_yml = home / ".config" / "gh" / "config.yml"
     if gh_config_yml.exists():
-        cmd.extend(["-v", f"{gh_config_yml}:/home/agentizer/.config/gh/config.yml:ro{userns_flag}"])
+        cmd.extend(["-v", f"{gh_config_yml}:/home/agentizer/.config/gh/config.yml:ro"])
 
     gh_hosts = home / ".config" / "gh" / "hosts.yml"
     if gh_hosts.exists():
-        cmd.extend(["-v", f"{gh_hosts}:/home/agentizer/.config/gh/hosts.yml:ro{userns_flag}"])
+        cmd.extend(["-v", f"{gh_hosts}:/home/agentizer/.config/gh/hosts.yml:ro"])
 
-    # 3. Git credentials
+    # Git credentials
     git_creds = home / ".git-credentials"
     if git_creds.exists():
-        cmd.extend(["-v", f"{git_creds}:/home/agentizer/.git-credentials:ro{userns_flag}"])
+        cmd.extend(["-v", f"{git_creds}:/home/agentizer/.git-credentials:ro"])
 
     git_config = home / ".gitconfig"
     if git_config.exists():
-        cmd.extend(["-v", f"{git_config}:/home/agentizer/.gitconfig:ro{userns_flag}"])
+        cmd.extend(["-v", f"{git_config}:/home/agentizer/.gitconfig:ro"])
 
-    # 4. Project directory
-    script_dir = Path(__file__).parent.resolve()
-    project_dir = script_dir.parent
-    cmd.extend(["-v", f"{project_dir}:/workspace/agentize"])
+    # Worktree directory
+    cmd.extend(["-v", f"{worktree_path}:/workspace"])
 
-    # 5. GitHub token
+    # Environment variables
     if "GITHUB_TOKEN" in os.environ:
         cmd.extend(["-e", f"GITHUB_TOKEN={os.environ['GITHUB_TOKEN']}"])
 
-    # 6. Anthropic API credentials (when not using CCR mode)
-    if not use_ccr:
+    if not ccr_mode:
         if "ANTHROPIC_API_KEY" in os.environ:
             cmd.extend(["-e", f"ANTHROPIC_API_KEY={os.environ['ANTHROPIC_API_KEY']}"])
         if "ANTHROPIC_BASE_URL" in os.environ:
             cmd.extend(["-e", f"ANTHROPIC_BASE_URL={os.environ['ANTHROPIC_BASE_URL']}"])
 
-    # 7. Working directory
-    cmd.extend(["-w", "/workspace/agentize"])
+    # Working directory
+    cmd.extend(["-w", "/workspace"])
 
-    # Image name
-    image_name = IMAGE_NAME
+    # Image and entrypoint with tmux
+    cmd.extend(["--entrypoint", "/usr/local/bin/entrypoint"])
+    cmd.append(IMAGE_NAME)
+    cmd.append("--tmux")
+    if ccr_mode:
+        cmd.append("--ccr")
 
-    # Handle entrypoint override
-    if entrypoint:
-        cmd.extend(["--entrypoint", entrypoint])
+    # Run container
+    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+    return result.stdout.strip()
 
-    # Handle custom command execution
-    # Note: Custom commands go through entrypoint to get permission fixes applied
-    if use_cmd and custom_cmd:
-        cmd.extend(["--entrypoint", "/usr/local/bin/entrypoint", image_name, "--cmd"])
-        cmd.extend(custom_cmd)
-    elif use_ccr:
-        cmd.extend(["--entrypoint", "/usr/local/bin/entrypoint", image_name, "--ccr"])
-        cmd.extend(container_args)
-    else:
-        cmd.append(image_name)
-        cmd.extend(container_args)
 
-    return cmd
+# =============================================================================
+# Subcommand Handlers
+# =============================================================================
+
+
+def cmd_new(args) -> int:
+    """Handle 'new' subcommand: Create new worktree + container."""
+    repo_base = Path(args.repo_base).resolve()
+    runtime = get_container_runtime()
+
+    # Validate git repo
+    if not validate_git_repo(repo_base):
+        print(f"Error: {repo_base} is not a git repository", file=sys.stderr)
+        return 1
+
+    # Check for name conflicts
+    db = SandboxDB(repo_base)
+    if db.get(args.name):
+        print(f"Error: Sandbox '{args.name}' already exists", file=sys.stderr)
+        return 1
+
+    # Ensure image exists
+    script_dir = Path(__file__).parent.resolve()
+    if not ensure_image(runtime, script_dir):
+        print("Failed to ensure container image", file=sys.stderr)
+        return 1
+
+    print(f"Creating sandbox '{args.name}' on branch '{args.branch}'...")
+
+    # Create worktree
+    try:
+        worktree_path = create_worktree(repo_base, args.name, args.branch)
+    except subprocess.CalledProcessError as e:
+        print(f"Failed to create worktree: {e}", file=sys.stderr)
+        return 1
+
+    # Record in database
+    db.create(args.name, args.branch, str(worktree_path), args.ccr)
+
+    # Create container
+    container_name = get_container_name(args.name)
+    try:
+        container_id = create_sandbox_container(
+            runtime, container_name, worktree_path, args.ccr
+        )
+        db.update_container_id(args.name, container_id)
+    except subprocess.CalledProcessError as e:
+        print(f"Failed to create container: {e}", file=sys.stderr)
+        # Cleanup worktree on failure
+        remove_worktree(repo_base, args.name)
+        db.delete(args.name)
+        return 1
+
+    print(f"Sandbox '{args.name}' created successfully")
+    print(f"  Worktree: {worktree_path}")
+    print(f"  Container: {container_name}")
+    print(f"  Attach with: run.py --repo_base {repo_base} attach -n {args.name}")
+    return 0
+
+
+def cmd_ls(args) -> int:
+    """Handle 'ls' subcommand: List all sandboxes."""
+    repo_base = Path(args.repo_base).resolve()
+    runtime = get_container_runtime()
+
+    if not validate_git_repo(repo_base):
+        print(f"Error: {repo_base} is not a git repository", file=sys.stderr)
+        return 1
+
+    db = SandboxDB(repo_base)
+    sandboxes = db.list_all()
+
+    if not sandboxes:
+        print("No sandboxes found")
+        return 0
+
+    # Print header
+    print(f"{'NAME':<15} {'BRANCH':<20} {'CONTAINER':<12} {'STATUS':<10} {'CREATED'}")
+    print("-" * 80)
+
+    for sb in sandboxes:
+        container_name = get_container_name(sb["name"])
+        if container_running(runtime, container_name):
+            status = "running"
+        elif container_exists(runtime, container_name):
+            status = "stopped"
+        else:
+            status = "no container"
+
+        created = sb["created_at"][:16] if sb["created_at"] else "unknown"
+        print(f"{sb['name']:<15} {sb['branch']:<20} {container_name:<12} {status:<10} {created}")
+
+    return 0
+
+
+def cmd_rm(args) -> int:
+    """Handle 'rm' subcommand: Delete worktree + container."""
+    repo_base = Path(args.repo_base).resolve()
+    runtime = get_container_runtime()
+
+    if not validate_git_repo(repo_base):
+        print(f"Error: {repo_base} is not a git repository", file=sys.stderr)
+        return 1
+
+    db = SandboxDB(repo_base)
+    sandbox = db.get(args.name)
+
+    if not sandbox:
+        print(f"Error: Sandbox '{args.name}' not found", file=sys.stderr)
+        return 1
+
+    container_name = get_container_name(args.name)
+    print(f"Removing sandbox '{args.name}'...")
+
+    # Stop and remove container
+    if container_exists(runtime, container_name):
+        stop_container(runtime, container_name)
+        remove_container(runtime, container_name)
+
+    # Remove worktree
+    try:
+        remove_worktree(repo_base, args.name)
+    except subprocess.CalledProcessError as e:
+        if not args.force:
+            print(f"Failed to remove worktree: {e}", file=sys.stderr)
+            return 1
+
+    # Remove from database
+    db.delete(args.name)
+    print(f"Sandbox '{args.name}' removed")
+    return 0
+
+
+def cmd_attach(args) -> int:
+    """Handle 'attach' subcommand: Attach to tmux session."""
+    repo_base = Path(args.repo_base).resolve()
+    runtime = get_container_runtime()
+
+    if not validate_git_repo(repo_base):
+        print(f"Error: {repo_base} is not a git repository", file=sys.stderr)
+        return 1
+
+    db = SandboxDB(repo_base)
+    sandbox = db.get(args.name)
+
+    if not sandbox:
+        print(f"Error: Sandbox '{args.name}' not found", file=sys.stderr)
+        return 1
+
+    container_name = get_container_name(args.name)
+
+    # Check container state
+    if not container_exists(runtime, container_name):
+        print(f"Error: Container '{container_name}' does not exist", file=sys.stderr)
+        return 1
+
+    # Start container if stopped
+    if not container_running(runtime, container_name):
+        print(f"Starting container '{container_name}'...")
+        if not start_container(runtime, container_name):
+            print(f"Failed to start container", file=sys.stderr)
+            return 1
+
+    # Attach to tmux session
+    cmd = [runtime, "exec", "-it", container_name, "tmux", "attach", "-t", "main"]
+    print(f"Attaching to sandbox '{args.name}'...")
+    os.execvp(cmd[0], cmd)
+
+
+# =============================================================================
+# Argument Parser
+# =============================================================================
 
 
 def main():
-    """Main entry point."""
-    args, container_args, custom_cmd = parse_arguments()
-
-    # Determine container runtime
-    runtime = get_container_runtime()
-    print(f"Using container runtime: {runtime}", file=sys.stderr)
-
-    # Get architecture (for informational purposes)
-    arch = get_host_architecture()
-    print(f"Detected host architecture: {arch}", file=sys.stderr)
-
-    # Ensure image exists (with automatic rebuild detection)
-    script_dir = Path(__file__).parent.resolve()
-    if args.build:
-        # Force rebuild
-        if not build_image(runtime, IMAGE_NAME, script_dir):
-            print("Failed to build container image", file=sys.stderr)
-            sys.exit(1)
-        # Update cache after rebuild
-        trigger_paths = [script_dir / f for f in BUILD_TRIGGER_FILES]
-        current_hash = calculate_files_hash(trigger_paths)
-        save_image_hash(current_hash)
-    elif not ensure_image(runtime, script_dir):
-        print("Failed to ensure container image", file=sys.stderr)
-        sys.exit(1)
-
-    # Determine if running in interactive mode
-    interactive = is_interactive()
-
-    # If custom_cmd is provided via --cmd, use it (overrides container_args)
-    use_cmd = args.cmd or bool(custom_cmd)
-
-    # Build and execute command
-    cmd = build_run_command(
-        runtime=runtime,
-        container_name=args.container_name,
-        is_interactive=interactive,
-        use_ccr=args.ccr,
-        use_cmd=args.cmd or bool(custom_cmd),
-        custom_cmd=custom_cmd,
-        container_args=container_args,
-        entrypoint=args.entrypoint,
+    """Main entry point with subcommand routing."""
+    parser = argparse.ArgumentParser(
+        description="Sandbox session manager with tmux-based worktree + container management.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "--repo_base",
+        required=True,
+        help="Base path of the git repository",
     )
 
-    # Print the command being executed
-    print(f"Executing: {shlex.join(cmd)}", file=sys.stderr)
+    subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
-    # Execute
-    os.execvp(cmd[0], cmd)
+    # 'new' subcommand
+    new_parser = subparsers.add_parser("new", help="Create new worktree + container")
+    new_parser.add_argument("-n", "--name", required=True, help="Sandbox name")
+    new_parser.add_argument("-b", "--branch", default="main", help="Branch to checkout")
+    new_parser.add_argument("--ccr", action="store_true", help="Run in CCR mode")
+
+    # 'ls' subcommand
+    subparsers.add_parser("ls", help="List all sandboxes")
+
+    # 'rm' subcommand
+    rm_parser = subparsers.add_parser("rm", help="Delete worktree + container")
+    rm_parser.add_argument("-n", "--name", required=True, help="Sandbox name")
+    rm_parser.add_argument("--force", action="store_true", help="Force removal")
+
+    # 'attach' subcommand
+    attach_parser = subparsers.add_parser("attach", help="Attach to tmux session")
+    attach_parser.add_argument("-n", "--name", required=True, help="Sandbox name")
+
+    args = parser.parse_args()
+
+    if not args.command:
+        parser.print_help()
+        sys.exit(1)
+
+    # Route to subcommand handler
+    handlers = {
+        "new": cmd_new,
+        "ls": cmd_ls,
+        "rm": cmd_rm,
+        "attach": cmd_attach,
+    }
+
+    handler = handlers.get(args.command)
+    if handler:
+        sys.exit(handler(args))
+    else:
+        parser.print_help()
+        sys.exit(1)
 
 
 if __name__ == "__main__":

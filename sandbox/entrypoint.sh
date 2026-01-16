@@ -1,9 +1,10 @@
 #!/bin/bash
 # Entrypoint script for agentize container
 #
-# Supports two modes:
+# Supports multiple modes:
 # - Default: Runs 'claude' with plugin support
 # - With --ccr flag: Runs 'ccr code' with plugin support
+# - With --tmux flag: Runs command inside tmux session 'main'
 
 # =============================================================================
 # Fix permissions for mounted config files
@@ -94,6 +95,7 @@ fi
 # =============================================================================
 HAS_CCR=0
 HAS_CMD=0
+HAS_TMUX=0
 ARGS=()
 
 for arg in "$@"; do
@@ -101,6 +103,8 @@ for arg in "$@"; do
         HAS_CCR=1
     elif [ "$arg" = "--cmd" ]; then
         HAS_CMD=1
+    elif [ "$arg" = "--tmux" ]; then
+        HAS_TMUX=1
     else
         ARGS+=("$arg")
     fi
@@ -109,6 +113,25 @@ done
 if [ $HAS_CMD -eq 1 ]; then
     # Custom command mode - execute the provided command
     exec "${ARGS[@]}"
+elif [ $HAS_TMUX -eq 1 ]; then
+    # Tmux session mode - create or attach to session 'main'
+    SESSION_NAME="main"
+
+    # Build the command to run inside tmux
+    if [ $HAS_CCR -eq 1 ]; then
+        TMUX_CMD="ccr code --dangerously-skip-permissions --plugin-dir .claude-plugin ${ARGS[*]}"
+    else
+        TMUX_CMD="claude --dangerously-skip-permissions --plugin-dir .claude-plugin ${ARGS[*]}"
+    fi
+
+    # Check if session exists
+    if tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
+        # Session exists, attach to it
+        exec tmux attach-session -t "$SESSION_NAME"
+    else
+        # Create new session with the command
+        exec tmux new-session -s "$SESSION_NAME" "$TMUX_CMD"
+    fi
 elif [ $HAS_CCR -eq 1 ]; then
     exec ccr code --dangerously-skip-permissions --plugin-dir .claude-plugin "${ARGS[@]}"
 else

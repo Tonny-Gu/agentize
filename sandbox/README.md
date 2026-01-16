@@ -127,7 +127,6 @@ CREATE TABLE sandboxes (
 ```bash
 # Build/rebuild the image (uses local config or auto-detection)
 make sandbox-build
-uv ./sandbox/run.py --build
 
 # Build with custom architecture
 podman build --build-arg HOST_ARCH=arm64 -t agentize-sandbox ./sandbox
@@ -168,7 +167,7 @@ Each sandbox runs a tmux session named `main` inside the container. This enables
 
 ```bash
 # Run sandbox session management tests
-./tests/sandbox-session-test.sh
+./tests/e2e/test-sandbox-session-management.sh
 
 # Run PATH verification tests
 ./tests/sandbox-path-test.sh
