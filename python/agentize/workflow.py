@@ -71,6 +71,7 @@ The ultimate goal of this workflow is to deliver a PR on GitHub that implements 
    2.3 If the code review raises concerns, fix the issues and return to 2.1.
    2.4 If the code review is satisfactory, proceed to open the PR.
 3. Prepare and create the PR. Do not ask user "Should I create the PR?" - just go ahead and create it!
+   - Creating the PR should use the `/open-pr` skill with appropriate titles.
 4. If the PR is successfully created, manually stop further continuations.
 5. If you do not know what to do next, or you reached the max continuations limit without delivering the PR,
    manually stop further continuations and look at the current branch name to see what issue you are working on.
