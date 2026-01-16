@@ -366,13 +366,8 @@ def get_container_name(name: str) -> str:
 
 def get_uid_gid_args(runtime: str) -> list[str]:
     """Get UID/GID mapping arguments for the container runtime."""
-    if runtime == "podman":
-        return ["--userns=keep-id"]
-    else:
-        # Docker: don't use --user flag, let container run as 'agentizer' user
-        # defined in Dockerfile. Using --user would override the container's
-        # user and cause permission issues with /home/agentizer.
-        return []
+    # No UID/GID mapping needed - container runs as its own user
+    return []
 
 
 def container_exists(runtime: str, container_name: str) -> bool:
@@ -441,9 +436,6 @@ def create_sandbox_container(
 
     # Container name
     cmd.extend(["--name", container_name])
-
-    # UID/GID mapping
-    cmd.extend(get_uid_gid_args(runtime))
 
     # Volume mounts
     home = Path.home()
@@ -670,8 +662,14 @@ def cmd_attach(args) -> int:
             print(f"Failed to start container", file=sys.stderr)
             return 1
 
-    # Attach to tmux session
-    cmd = [runtime, "exec", "-it", container_name, "tmux", "attach", "-t", "main"]
+    # Attach to tmux session using the fixed socket path
+    # Use -u 0 (root) because podman rootless maps container UID to different host UID,
+    # causing socket permission issues when accessing from exec
+    socket_path = "/tmp/tmux-main"
+    cmd = [
+        runtime, "exec", "-it", "-u", "0",
+        container_name, "tmux", "-S", socket_path, "attach", "-t", "main"
+    ]
     print(f"Attaching to sandbox '{args.name}'...")
     os.execvp(cmd[0], cmd)
 

@@ -169,19 +169,16 @@ FROM user-setup AS final
 # Set working directory
 WORKDIR /workspace
 
-# Set environment for agentizer
-ENV HOME=/home/agentizer
-
 # Copy entrypoint script
 COPY entrypoint.sh /usr/local/bin/entrypoint
-RUN chmod +x /usr/local/bin/entrypoint
+RUN chmod 755 /usr/local/bin/entrypoint
 
-# Switch to non-root user
+# Install claude plugin as agentizer user during build
 USER agentizer
+ENV HOME=/home/agentizer
+RUN claude mcp add -s user playwright npx @playwright/mcp@latest --headless
 
-# run install plugin for claude
-RUN claude mcp add -s user playwright npx @playwright/mcp@latest --headless 
-
+# Stay as agentizer user for runtime
 # Default command
 ENTRYPOINT ["/usr/local/bin/entrypoint"]
 CMD ["/bin/bash"]

@@ -114,24 +114,27 @@ if [ $HAS_CMD -eq 1 ]; then
     # Custom command mode - execute the provided command
     exec "${ARGS[@]}"
 elif [ $HAS_TMUX -eq 1 ]; then
-    # Tmux session mode - create or attach to session 'main'
+    # Tmux session mode - create session and keep container running
     SESSION_NAME="main"
+
+    # Use /tmp for socket
+    SOCKET_PATH="/tmp/tmux-main"
 
     # Build the command to run inside tmux
     if [ $HAS_CCR -eq 1 ]; then
-        TMUX_CMD="ccr code --dangerously-skip-permissions --plugin-dir .claude-plugin ${ARGS[*]}"
+        TMUX_CMD="cd /workspace && ccr code --dangerously-skip-permissions --plugin-dir .claude-plugin ${ARGS[*]}"
     else
-        TMUX_CMD="claude --dangerously-skip-permissions --plugin-dir .claude-plugin ${ARGS[*]}"
+        TMUX_CMD="cd /workspace && claude --dangerously-skip-permissions --plugin-dir .claude-plugin ${ARGS[*]}"
     fi
 
-    # Check if session exists
-    if tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
-        # Session exists, attach to it
-        exec tmux attach-session -t "$SESSION_NAME"
-    else
-        # Create new session with the command
-        exec tmux new-session -s "$SESSION_NAME" "$TMUX_CMD"
-    fi
+    # Create tmux session
+    tmux -S "$SOCKET_PATH" new-session -d -s "$SESSION_NAME" "$TMUX_CMD"
+    
+    # Make socket accessible to all users  
+    chmod 777 "$SOCKET_PATH" 2>/dev/null || true
+    
+    # Keep container alive - wait forever until terminated
+    exec tail -f /dev/null
 elif [ $HAS_CCR -eq 1 ]; then
     exec ccr code --dangerously-skip-permissions --plugin-dir .claude-plugin "${ARGS[@]}"
 else
