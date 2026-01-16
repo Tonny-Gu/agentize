@@ -1,6 +1,6 @@
 # Sandbox
 
-Development environment container for agentize SDK.
+Development environment container for agentize SDK with tmux-based session management.
 
 ## Purpose
 
@@ -8,18 +8,19 @@ This directory contains the Docker sandbox environment used for:
 - Testing the agentize SDK in a controlled environment
 - Development workflows requiring isolated dependencies
 - CI/CD pipeline validation
+- **Persistent, detachable Claude/CCR sessions via tmux**
 
 ## Contents
 
-- `Dockerfile` - Docker image definition with all required tools
+- `Dockerfile` - Docker image definition with all required tools (including tmux)
 - `install.sh` - Claude Code installation script (copied into container)
-- `entrypoint.sh` - Container entrypoint with ccr/claude routing
-- `run.py` - Python-based container runner with volume passthrough and auto-build
+- `entrypoint.sh` - Container entrypoint with tmux session support
+- `run.py` - Python-based sandbox manager with subcommand architecture
 - `pyproject.toml` - Python project configuration
 
 ## User
 
-The container runs as the `agentizer` user with sudo privileges.
+The container runs with UID/GID mapping to match the host user, ensuring worktrees are readable/writable both inside and outside the container.
 
 ## Installed Tools
 
@@ -31,6 +32,7 @@ The container runs as the `agentizer` user with sudo privileges.
 - claude-code-router
 - Claude Code
 - GitHub CLI
+- **tmux** (for persistent sessions)
 
 ## Container Runtime
 
@@ -58,6 +60,68 @@ The `run.py` script automatically handles container image building:
 - **File changes**: Rebuilds when `Dockerfile`, `install.sh`, or `entrypoint.sh` change
 - **Force rebuild**: Use `--build` flag to force a rebuild
 
+## CLI Interface
+
+```
+run.py --repo_base <base_path> <subcommand> [options]
+```
+
+### Subcommands
+
+| Command | Description |
+|---------|-------------|
+| `new -n <name> [--ccr] [-b <branch>]` | Create new worktree + container |
+| `ls` | List all worktree + container combinations |
+| `rm -n <name>` | Delete worktree + container |
+| `attach -n <name>` | Attach to tmux session via exec -it |
+
+### Examples
+
+```bash
+# Create a new sandbox with worktree
+uv run sandbox/run.py --repo_base /path/to/repo new -n feature-x -b main
+
+# Create sandbox in CCR mode
+uv run sandbox/run.py --repo_base /path/to/repo new -n feature-y --ccr
+
+# List all sandboxes
+uv run sandbox/run.py --repo_base /path/to/repo ls
+
+# Attach to a running sandbox
+uv run sandbox/run.py --repo_base /path/to/repo attach -n feature-x
+
+# Remove a sandbox
+uv run sandbox/run.py --repo_base /path/to/repo rm -n feature-x
+```
+
+## Directory Structure
+
+```
+<repo_base>/
+├── .git/                    # Main git repository
+├── .wt/                     # Worktrees directory
+│   ├── feature-x/           # Worktree for sandbox "feature-x"
+│   └── ...
+├── .sandbox_db.sqlite       # Sandbox state database
+└── ...
+```
+
+## State Management
+
+Sandbox state is stored in `<repo_base>/.sandbox_db.sqlite`:
+
+```sql
+CREATE TABLE sandboxes (
+    name TEXT PRIMARY KEY,
+    branch TEXT NOT NULL,
+    container_id TEXT,
+    worktree_path TEXT NOT NULL,
+    ccr_mode INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
 ## Build
 
 ```bash
@@ -69,70 +133,43 @@ uv ./sandbox/run.py --build
 podman build --build-arg HOST_ARCH=arm64 -t agentize-sandbox ./sandbox
 ```
 
-## Usage with Volume Passthrough
+## Volume Mounts
 
-Use `run.py` to mount external resources into the container:
+The sandbox automatically mounts:
+- `~/.claude-code-router/config.json` -> container CCR config (read-only)
+- `~/.config/gh/` -> container GH CLI config (read-only)
+- `~/.git-credentials` -> container git credentials (read-only)
+- `~/.gitconfig` -> container git config (read-only)
+- Worktree directory -> `/workspace` (read-write)
+- `GITHUB_TOKEN` environment variable (if set)
 
+## UID/GID Mapping
+
+Container user matches host user for seamless file access:
+
+**Docker:**
 ```bash
-# Basic usage (auto-builds if needed)
-uv ./sandbox/run.py
-
-# Run with custom container name
-uv ./sandbox/run.py my-container
-
-# Pass arguments to the container
-uv ./sandbox/run.py -- --help
-
-# Run with --ccr flag for CCR mode
-uv ./sandbox/run.py -- --ccr --help
-
-# Execute custom command
-uv ./sandbox/run.py --cmd -- ls /workspace
-
-# Force rebuild the image
-uv ./sandbox/run.py --build
+docker run --user $(id -u):$(id -g) ...
 ```
 
-Or use the Makefile:
-
+**Podman:**
 ```bash
-make sandbox-run
-make sandbox-run -- --help
+podman run --userns=keep-id ...
 ```
 
-The script automatically mounts:
-- `~/.claude-code-router/config.json` -> `/home/agentizer/.claude-code-router/config.json` (read-only, used for CCR)
-- `~/.claude-code-router/config.json` -> `/home/agentizer/.claude-code-router/config-router.json` (read-only, for CCR compatibility)
-- `~/.config/gh/config.yml` -> `/home/agentizer/.config/gh/config.yml` (read-only, GH CLI configuration)
-- `~/.config/gh/hosts.yml` -> `/home/agentizer/.config/gh/hosts.yml` (read-only, GH CLI hosts)
-- `~/.git-credentials` -> `/home/agentizer/.git-credentials` (read-only)
-- `~/.gitconfig` -> `/home/agentizer/.gitconfig` (read-only)
-- Current agentize project directory -> `/workspace/agentize`
-- `GITHUB_TOKEN` environment variable (if set on host, passed to container for GH CLI auth)
+## Tmux Session
 
-## Entrypoint Modes
-
-The container supports two modes via the entrypoint:
-
-### Claude Code Mode (Default)
-
-Without `--ccr` flag, runs Claude Code:
-
-```bash
-uv ./sandbox/run.py -- claude --help
-```
-
-### CCR Mode
-
-With `--ccr` flag, runs claude-code-router:
-
-```bash
-uv ./sandbox/run.py -- --ccr --help
-```
+Each sandbox runs a tmux session named `main` inside the container. This enables:
+- Detaching from sessions without stopping the container
+- Attaching from multiple terminals
+- Persistent work state across reconnections
 
 ## Testing
 
 ```bash
+# Run sandbox session management tests
+./tests/sandbox-session-test.sh
+
 # Run PATH verification tests
 ./tests/sandbox-path-test.sh
 
