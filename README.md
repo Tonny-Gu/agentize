@@ -2,7 +2,13 @@
 
 ## Quick Start
 
-### One-Command Install
+Agentize is an AI-powered SDK that helps you build your software projects
+using Claude Code powerfully. It is splitted into two main components:
+
+1. **Claude Code Plugin**: Refer to [our plugin installation guide](./docs/plugin-installation.md)
+   to set up the Agentize plugin for Claude Code.
+2. **CLI Tool**: A source-first CLI tool to help you manage your projects using Agentize.
+   See the commands below to install.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/SyntheSys-Lab/agentize/main/scripts/install | bash
@@ -18,24 +24,6 @@ See [docs/cli/install.md](./docs/cli/install.md) for installation options and tr
 
 **Upgrade:** Run `lol upgrade` to pull the latest changes.
 
-### Manual Install
-
-If you prefer manual setup:
-
-```bash
-# Clone the repository
-git clone https://github.com/SyntheSys-Lab/agentize.git ~/.agentize
-
-# Run setup
-cd ~/.agentize
-make setup
-```
-
-Then add to your shell RC file (`~/.bashrc`, `~/.zshrc`, etc.):
-
-```bash
-source $HOME/.agentize/setup.sh
-```
 ## Core Philosophy
 
 1. Plan first, code later: Use AI to generate a detailed plan before writing any code.
@@ -65,6 +53,7 @@ See our detailed workflow diagrams:
 Learn Agentize in 15 minutes with our step-by-step tutorials (3-5 min each):
 
 1. **[Initialize Your Project](./docs/tutorial/00-initialize.md)** - Set up Agentize in new or existing projects
+   - You already did this if you followed the Quick Start!
 2. **[Ultra Planner](./docs/tutorial/01-ultra-planner.md)** - Primary planning tutorial (recommended)
 3. **[Issue to Implementation](./docs/tutorial/02-issue-to-impl.md)** - Complete development cycle with `/issue-to-impl` and `/code-review`
 4. **[Advanced Usage](./docs/tutorial/03-advanced-usage.md)** - Scale up with parallel development workflows
@@ -81,7 +70,6 @@ agentize/
 │   └── hooks/              # Claude Code hooks
 ├── python/                 # Python modules (agentize.*)
 ├── docs/                   # Documentation
-│   ├── plugin-installation.md  # Plugin installation guide
 │   └── git-msg-tags.md     # Commit message conventions
 ├── src/cli/                # Source-first CLI libraries
 │   ├── wt.sh               # Worktree CLI library
