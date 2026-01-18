@@ -22,6 +22,16 @@ PERMISSION_RULES = {
         ('Skill', r'^code-review'),
         ('Skill', r'^pull-request'),
 
+        ('Skill', r'^agentize:open-pr'),
+        ('Skill', r'^agentize:open-issue'),
+        ('Skill', r'^agentize:fork-dev-branch'),
+        ('Skill', r'^agentize:commit-msg'),
+        ('Skill', r'^agentize:review-standard'),
+        ('Skill', r'^agentize:external-consensus'),
+        ('Skill', r'^agentize:milestone'),
+        ('Skill', r'^agentize:code-review'),
+        ('Skill', r'^agentize:pull-request'),
+
         # WebSearch and WebFetch
         ('WebSearch', r'.*'),
         ('WebFetch', r'.*'),
