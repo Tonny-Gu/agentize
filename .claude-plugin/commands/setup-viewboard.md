@@ -181,7 +181,10 @@ gh api graphql -f query='
 
 Required options: Proposed, Plan Accepted, In Progress, Done
 
-2. If the status options are not as expected, use the command below to configure the Status field:
+2. If the status options are not as expected, use the command below to configure the Status field.
+> NOTE: **CAREFULLY** check each existing single select options of the `Status` field,
+> ensure an **EXACT MATCH** of the names. If not, run the mutation below to reset the options.
+
 ```bash
 gh api graphql -f query='
   mutation {
