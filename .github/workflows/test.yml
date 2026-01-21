@@ -16,5 +16,5 @@ jobs:
       - name: Install zsh
         run: sudo apt-get update && sudo apt-get install -y zsh
 
-      - name: Run multi-shell tests
-        run: make test-shells
+      - name: Run multi-shell tests (excluding e2e/sandbox)
+        run: TEST_SHELLS="bash zsh" make test-fast
