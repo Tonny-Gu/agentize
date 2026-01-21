@@ -163,25 +163,6 @@ def _log_supervisor_debug(message: dict):
         pass  # Silently ignore logging errors
 
 
-def _get_workflow_goal(workflow: str) -> str:
-    """Get human-readable goal for a workflow.
-
-    Args:
-        workflow: Workflow name string
-
-    Returns:
-        Human-readable goal description
-    """
-    goals = {
-        ULTRA_PLANNER: 'Create a comprehensive implementation plan and post it on GitHub issue',
-        ISSUE_TO_IMPL: 'Implement an issue and deliver a working PR',
-        PLAN_TO_ISSUE: 'Create a GitHub [plan] issue from a user-provided plan',
-        SETUP_VIEWBOARD: 'Set up a GitHub Projects v2 board with proper configuration',
-        SYNC_MASTER: 'Sync local main/master branch with upstream',
-    }
-    return goals.get(workflow, 'Complete the current workflow')
-
-
 def _ask_claude_for_guidance(workflow: str, continuation_count: int,
                              max_continuations: int, transcript_path: str = None) -> Optional[str]:
     """Ask Claude for context-aware continuation guidance.
@@ -223,15 +204,24 @@ def _ask_claude_for_guidance(workflow: str, continuation_count: int,
         except Exception:
             pass  # Silently ignore transcript read errors
 
-    # Build context prompt for Claude
+    # Get the full prompt template for this workflow
+    workflow_template = _CONTINUATION_PROMPTS.get(workflow, '')
+    if not workflow_template:
+        return None  # No template for this workflow
+
+    # Build context prompt for Claude with full workflow template
     prompt = f'''You are a workflow supervisor for an AI agent system.
 
 WORKFLOW: {workflow}
-GOAL: {_get_workflow_goal(workflow)}
+PROGRESS: {continuation_count} / {max_continuations} continuations
 
-PROGRESS: {continuation_count} / {max_continuations} continuations{transcript_context}
+WORKFLOW PROMPT TEMPLATE (this is what the agent receives as instructions):
+---
+{workflow_template}
+---
+{transcript_context}
 
-Based on the current workflow progress and conversation context, provide a concise instruction for what the agent should do next.
+Based on the workflow template above and the conversation context, provide a concise instruction for what the agent should do next.
 
 Respond with ONLY the continuation instruction (2-3 sentences), no explanations.'''
 
