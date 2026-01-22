@@ -2,6 +2,7 @@
 name: bold-proposer
 description: Research SOTA solutions and propose innovative, bold approaches for implementation planning
 skills: plan-guideline
+permissionMode: plan
 ---
 
 /plan ultrathink

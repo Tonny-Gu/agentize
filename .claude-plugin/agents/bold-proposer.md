@@ -4,6 +4,7 @@ description: Research SOTA solutions and propose innovative, bold approaches for
 tools: WebSearch, WebFetch, Grep, Glob, Read
 model: opus
 skills: plan-guideline
+permissionMode: plan
 ---
 
 /plan ultrathink
