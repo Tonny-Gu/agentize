@@ -394,15 +394,21 @@ Use this format for ALL outputs (consensus or partial consensus):
 
 ## Selection History
 
-| Timestamp | Disagreement | Selected Option | User Comments | Source |
-|-----------|--------------|-----------------|---------------|--------|
-| [From history file - all rows] |
+**Row Granularity**: Each row represents ONE disagreement point, not one resolve command.
+
+| Timestamp | Disagreement | Options Summary | Selected Option | User Comments |
+|-----------|--------------|-----------------|-----------------|---------------|
+| 2026-01-22 19:30 | 1: Agent Naming | 1A (Paranoia): suffix; 1B (Bold): prefix | 1B (Bold) | Prefix matches existing |
+| [Previous rows from history file] |
 
 ## Refine History
 
-| Timestamp | Summary | Command |
-|-----------|---------|---------|
-| [From history file - all rows if table exists] |
+**Row Granularity**: Each row represents one `--refine` operation.
+
+| Timestamp | Summary |
+|-----------|---------|
+| 2026-01-22 16:00 | Add error handling to Step 3 |
+| [Previous rows from history file] |
 
 ## Option Compatibility Check
 
