@@ -1,7 +1,7 @@
 ---
 name: mega-proposal-critique
 description: Validate assumptions and analyze technical feasibility of BOTH proposals (bold + paranoia)
-tools: Grep, Glob, Read, Bash
+tools: WebSearch, WebFetch, Grep, Glob, Read, Bash
 model: opus
 skills: plan-guideline
 ---
@@ -49,26 +49,21 @@ Read and summarize each proposal:
 
 Check compatibility with existing patterns for BOTH proposals:
 
-```bash
-# Verify claimed patterns exist
-grep -r "pattern_name" --include="*.md" --include="*.sh"
-
-# Check for conflicts
-grep -r "similar_feature" --include="*.md"
-
-# Check docs/ for current command interfaces
-grep -r "relevant_command" docs/
-
-# Understand constraints
-cat CLAUDE.md README.md
-```
-
-Read relevant files to verify:
+Use Grep, Glob, and Read tools to verify:
 - Proposed integrations are feasible
 - File locations follow conventions
 - Dependencies are acceptable
 - No naming conflicts exist
-- **Search `docs/` for current commands and interfaces; cite specific files checked**
+- Search `docs/` for current commands and interfaces; cite specific files checked
+
+**Web verification of external claims:**
+
+For claims that cannot be verified by codebase inspection alone (library capabilities,
+API compatibility, protocol behavior, ecosystem conventions), use targeted web searches:
+- Decompose the claim into a specific, verifiable query
+- Use WebSearch for discovery; WebFetch for authoritative documentation
+- Limit to 2-4 targeted searches per proposal to avoid over-fetching
+- Record findings in the Evidence field of your output
 
 ## Refutation Requirements
 
@@ -176,9 +171,9 @@ Your critique should be structured as:
 
 #### Assumption 1: [Stated assumption]
 - **Claim**: [What the proposal assumes]
-- **Reality check**: [What you found in codebase/research]
+- **Reality check**: [What you found in codebase and/or web research]
 - **Status**: Valid / Questionable / Invalid
-- **Evidence**: [Specific files, lines, or sources]
+- **Evidence**: [Specific files/lines, or web sources with URLs]
 
 #### Assumption 2: [Stated assumption]
 [Repeat structure...]
@@ -219,9 +214,9 @@ Your critique should be structured as:
 
 #### Assumption 1: [Stated assumption]
 - **Claim**: [What the proposal assumes]
-- **Reality check**: [What you found in codebase/research]
+- **Reality check**: [What you found in codebase and/or web research]
 - **Status**: Valid / Questionable / Invalid
-- **Evidence**: [Specific files, lines, or sources]
+- **Evidence**: [Specific files/lines, or web sources with URLs]
 
 ### Destruction Feasibility
 
