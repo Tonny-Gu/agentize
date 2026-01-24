@@ -223,6 +223,7 @@ gh label create "agentize:refine" --description "Issues queued for refinement" -
 gh label create "agentize:dev-req" --description "Developer request issues" --color "D93F0B" --force
 gh label create "agentize:bug-report" --description "Bug report issues" --color "B60205" --force
 gh label create "agentize:pr" --description "PR created for implementation" --color "8B6EE8" --force
+gh label create "agentize:unresolved" --description "Plan has unresolved disagreements requiring developer decision" --color "FBCA04" --force
 ```
 
 Inform the user:
@@ -233,6 +234,7 @@ Created labels:
   - agentize:dev-req (orange)
   - agentize:bug-report (red)
   - agentize:pr (purple)
+  - agentize:unresolved (yellow)
 ```
 
 ### Step 7: Summary

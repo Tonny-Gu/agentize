@@ -491,15 +491,22 @@ Next steps: Review the plan and begin implementation when ready.
 gh issue edit ${ISSUE_NUMBER} --add-label "agentize:plan"
 ```
 
-**For `--from-issue` mode only:** Also remove the "agentize:feat-request" label if present:
+**For `--from-issue` mode only:** Also remove the "agentize:dev-req" label if present:
 
 ```bash
-gh issue edit ${ISSUE_NUMBER} --remove-label "agentize:feat-request"
+gh issue edit ${ISSUE_NUMBER} --remove-label "agentize:dev-req"
 ```
 
-**Expected output:**
-```
-Label "agentize:plan" added to issue #${ISSUE_NUMBER}
+**Disagreement-aware label management:**
+
+Check whether the consensus file contains disagreement sections. Add or remove the `agentize:unresolved` label accordingly:
+
+```bash
+if grep -qE "^## Disagreement [0-9]+:" "${CONSENSUS_PLAN_FILE}"; then
+    gh issue edit ${ISSUE_NUMBER} --add-label "agentize:unresolved"
+else
+    gh issue edit ${ISSUE_NUMBER} --remove-label "agentize:unresolved"
+fi
 ```
 
 Display the final output to the user. Command completes successfully.
