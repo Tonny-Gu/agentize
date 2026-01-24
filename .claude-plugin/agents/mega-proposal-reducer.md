@@ -280,6 +280,7 @@ Keep complexity when it's truly justified:
 - Required by explicit requirements
 - Solves real, current problems
 - Mandated by project constraints
+- Is test code that verifies correctness (test code is NOT unnecessary complexity)
 
 **Remove if:**
 - "Might need it someday"

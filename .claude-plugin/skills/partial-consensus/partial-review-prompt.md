@@ -183,6 +183,8 @@ Use this format for ALL outputs (consensus or partial consensus):
 ## Implementation Steps
 
 > **Note**: Include only consensus steps here—steps that ALL agents agree on. Disputed approaches belong in their respective `## Disagreement N` sections below.
+>
+> **MANDATORY: Design-first TDD ordering**: Steps MUST follow Documentation → Tests → Implementation (never invert). Every plan MUST include at least one test step with a code draft.
 
 **Step 1: [Description]**
 - File: `path/to/file`
@@ -442,7 +444,7 @@ Each disagreement MUST have at least 2 options:
 Each option MUST include:
 1. Summary with **Source attribution** (e.g., "From Bold", "From Paranoia + Code Reducer")
 2. File Changes table
-3. Implementation Steps
+3. Implementation Steps (following Documentation → Tests → Implementation ordering)
 4. Code Draft in collapsible `<details>` block
 5. Risks and Mitigations table
 

@@ -142,6 +142,24 @@ File: `path/to/another.rs`
 
 [Continue for all components...]
 
+### Test Code Diffs
+
+**MANDATORY**: Every destruction/rewrite MUST include test code that proves the new simpler code behaves correctly.
+
+- Existing tests that cover deleted code: show how they are updated or replaced
+- New tests for rewritten code: verify the simplified behavior still works
+
+**Test 1: [Scenario]**
+
+File: `path/to/test_file.rs`
+
+```diff
++ #[test]
++ fn test_simplified_behavior() {
++     // Verify the rewritten code still works correctly
++ }
+```
+
 ## Benefits
 
 1. **Less code**: [net deletion summary]
