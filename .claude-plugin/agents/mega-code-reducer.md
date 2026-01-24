@@ -101,10 +101,12 @@ Decide whether Bold, Paranoia, or a hybrid yields the smallest post-change codeb
 
 ## LOC Impact Summary
 
-| Proposal | Lines Added | Lines Removed | Net Delta |
-|----------|-------------|---------------|-----------|
-| Bold | +X | -Y | +/-Z |
-| Paranoia | +X | -Y | +/-Z |
+| Proposal | Impl Added | Impl Removed | Test Added | Test Removed | Net Delta |
+|----------|------------|--------------|------------|--------------|-----------|
+| Bold | +X | -Y | +T1 | -T2 | +/-Z |
+| Paranoia | +X | -Y | +T1 | -T2 | +/-Z |
+
+**Note**: Test LOC additions are expected and encouraged. Only flag test code as bloat if clearly redundant.
 
 **Current baseline**: X LOC in affected files
 **Recommended approach**: [Bold/Paranoia/Hybrid] (net delta: +/-Z)

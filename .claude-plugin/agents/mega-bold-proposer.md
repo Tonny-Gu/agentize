@@ -110,6 +110,24 @@ File: `path/to/another.rs`
 
 [Continue for all components...]
 
+### Test Code Diffs
+
+**MANDATORY**: Every proposal MUST include test code diffs that verify the proposed changes.
+
+- Cover: happy path, error cases, and edge cases
+- Use the project's test layers: inline `#[cfg(test)]` for unit, `tests/integration/` for integration, `tests/e2e/` for end-to-end
+
+**Test 1: [Scenario]**
+
+File: `path/to/test_file.rs`
+
+```diff
++ #[test]
++ fn test_new_behavior() {
++     // Test implementation
++ }
+```
+
 ## Benefits
 
 1. [Benefit with explanation]

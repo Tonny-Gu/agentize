@@ -118,6 +118,13 @@ For each major claim or assumption in each proposal:
 - Are there simpler alternatives being overlooked?
 - Is the complexity justified?
 
+### Step 3.5: Assess Test Coverage in BOTH Proposals
+
+For each proposal, evaluate:
+- Are test code diffs present? (Flag as HIGH risk if missing)
+- Do tests cover happy path, error cases, and edge cases?
+- Are existing tests properly updated for any code changes?
+
 ### Step 4: Identify Risks in BOTH Proposals
 
 Categorize potential issues for each:
@@ -138,6 +145,11 @@ Categorize potential issues for each:
 - Implementation difficulty
 - Testing challenges
 - Migration complexity
+
+#### Test Coverage Risks
+- Missing test code diffs in proposal
+- Tests that don't cover error/edge cases
+- Existing tests broken by proposed changes without updates
 
 ### Step 5: Compare and Contrast
 
@@ -311,6 +323,7 @@ Watch for these issues in BOTH proposals:
 5. **Missing constraints**: Ignores project limitations
 6. **Unclear requirements**: Vague or ambiguous goals
 7. **Unjustified dependencies**: New tools without clear benefit
+8. **Missing test code**: Proposals without test diffs lack verifiability
 
 ## Context Isolation
 
