@@ -32,6 +32,18 @@ test_info "Test 2: detect_workflow('/ultra-planner --refine 42') → ultra-plann
 RESULT=$(run_workflow_python "from lib.workflow import detect_workflow; print(detect_workflow('/ultra-planner --refine 42'))")
 [ "$RESULT" = "ultra-planner" ] || test_fail "Expected 'ultra-planner', got '$RESULT'"
 
+test_info "Test 2a: detect_workflow('/mega-planner') → mega-planner"
+RESULT=$(run_workflow_python "from lib.workflow import detect_workflow; print(detect_workflow('/mega-planner'))")
+[ "$RESULT" = "mega-planner" ] || test_fail "Expected 'mega-planner', got '$RESULT'"
+
+test_info "Test 2b: detect_workflow('/mega-planner --refine 42') → mega-planner"
+RESULT=$(run_workflow_python "from lib.workflow import detect_workflow; print(detect_workflow('/mega-planner --refine 42'))")
+[ "$RESULT" = "mega-planner" ] || test_fail "Expected 'mega-planner', got '$RESULT'"
+
+test_info "Test 2c: detect_workflow('/mega-planner --from-issue 123') → mega-planner"
+RESULT=$(run_workflow_python "from lib.workflow import detect_workflow; print(detect_workflow('/mega-planner --from-issue 123'))")
+[ "$RESULT" = "mega-planner" ] || test_fail "Expected 'mega-planner', got '$RESULT'"
+
 test_info "Test 3: detect_workflow('/issue-to-impl 42') → issue-to-impl"
 RESULT=$(run_workflow_python "from lib.workflow import detect_workflow; print(detect_workflow('/issue-to-impl 42'))")
 [ "$RESULT" = "issue-to-impl" ] || test_fail "Expected 'issue-to-impl', got '$RESULT'"
@@ -108,6 +120,10 @@ test_info "Test 16: has_continuation_prompt('ultra-planner') → True"
 RESULT=$(run_workflow_python "from lib.workflow import has_continuation_prompt; print(has_continuation_prompt('ultra-planner'))")
 [ "$RESULT" = "True" ] || test_fail "Expected 'True', got '$RESULT'"
 
+test_info "Test 16a: has_continuation_prompt('mega-planner') → True"
+RESULT=$(run_workflow_python "from lib.workflow import has_continuation_prompt; print(has_continuation_prompt('mega-planner'))")
+[ "$RESULT" = "True" ] || test_fail "Expected 'True', got '$RESULT'"
+
 test_info "Test 17: has_continuation_prompt('issue-to-impl') → True"
 RESULT=$(run_workflow_python "from lib.workflow import has_continuation_prompt; print(has_continuation_prompt('issue-to-impl'))")
 [ "$RESULT" = "True" ] || test_fail "Expected 'True', got '$RESULT'"
@@ -172,6 +188,14 @@ print('VIEWBOARD_OK' if 'Projects v2 board' in prompt else 'VIEWBOARD_MISSING')
 ")
 [ "$RESULT" = "VIEWBOARD_OK" ] || test_fail "Expected 'Projects v2 board' in setup-viewboard prompt, got '$RESULT'"
 
+test_info "Test 26a: get_continuation_prompt() for mega-planner returns non-empty"
+RESULT=$(run_workflow_python "
+from lib.workflow import get_continuation_prompt
+prompt = get_continuation_prompt('mega-planner', 'test-session', '/tmp/test.json', 1, 10)
+print('MEGA_OK' if len(prompt) > 0 else 'MEGA_EMPTY')
+")
+[ "$RESULT" = "MEGA_OK" ] || test_fail "Expected non-empty mega-planner prompt, got '$RESULT'"
+
 test_info "Test 27: get_continuation_prompt() for unknown workflow returns empty string"
 RESULT=$(run_workflow_python "
 from lib.workflow import get_continuation_prompt
@@ -216,6 +240,10 @@ print('NO_PLAN_OK' if 'milestone' in prompt.lower() and 'Plan file:' not in prom
 test_info "Test 28: ULTRA_PLANNER constant equals 'ultra-planner'"
 RESULT=$(run_workflow_python "from lib.workflow import ULTRA_PLANNER; print(ULTRA_PLANNER)")
 [ "$RESULT" = "ultra-planner" ] || test_fail "Expected 'ultra-planner', got '$RESULT'"
+
+test_info "Test 28a: MEGA_PLANNER constant equals 'mega-planner'"
+RESULT=$(run_workflow_python "from lib.workflow import MEGA_PLANNER; print(MEGA_PLANNER)")
+[ "$RESULT" = "mega-planner" ] || test_fail "Expected 'mega-planner', got '$RESULT'"
 
 test_info "Test 29: ISSUE_TO_IMPL constant equals 'issue-to-impl'"
 RESULT=$(run_workflow_python "from lib.workflow import ISSUE_TO_IMPL; print(ISSUE_TO_IMPL)")
