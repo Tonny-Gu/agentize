@@ -48,6 +48,9 @@ REQUIRED_HTML_ANCHORS=(
     '<a id="disagreement-1-topic"></a>'
     '<a id="selection-history"></a>'
     '<a id="refine-history"></a>'
+    '<a id="option-1a-name-conservative"></a>'
+    '<a id="option-1b-name-aggressive"></a>'
+    '<a id="option-1c-name-balanced"></a>'
 )
 
 for anchor in "${REQUIRED_HTML_ANCHORS[@]}"; do
