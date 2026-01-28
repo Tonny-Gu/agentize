@@ -429,7 +429,7 @@ _planner_run_pipeline() {
     fi
 
     local consensus_path
-    consensus_path=$("$consensus_script" "$bold_output" "$critique_output" "$reducer_output")
+    consensus_path=$("$consensus_script" "$bold_output" "$critique_output" "$reducer_output" | tail -n 1)
     local consensus_exit=$?
     _planner_anim_stop
 
