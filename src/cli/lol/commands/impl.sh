@@ -57,6 +57,12 @@ lol_cmd_impl() {
         fi
     fi
 
+    wt goto "$issue_no" || {
+        echo "Error: Failed to switch to worktree for issue $issue_no" >&2
+        return 1
+    }
+    echo "Navigated to worktree at $worktree_path"
+
     # Ensure .tmp directory exists in worktree
     mkdir -p "$worktree_path/.tmp"
 
