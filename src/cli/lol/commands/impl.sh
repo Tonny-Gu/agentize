@@ -55,12 +55,15 @@ lol_cmd_impl() {
             echo "Error: Failed to get worktree path after spawn" >&2
             return 1
         fi
+    else
+        echo "Using existing worktree for issue $issue_no at $worktree_path"
     fi
 
     wt goto "$issue_no" || {
         echo "Error: Failed to switch to worktree for issue $issue_no" >&2
         return 1
     }
+
     echo "Navigated to worktree at $worktree_path"
 
     # Ensure .tmp directory exists in worktree
@@ -70,18 +73,21 @@ lol_cmd_impl() {
     local input_file="$worktree_path/.tmp/impl-input.txt"
     local output_file="$worktree_path/.tmp/impl-output.txt"
     local finalize_file="$worktree_path/.tmp/finalize.txt"
-    local report_file="$worktree_path/.tmp/report.txt"  # legacy fallback
 
     # Prefetch issue content (title/body/labels) for the initial prompt
     local issue_file="$worktree_path/.tmp/issue-${issue_no}.md"
     gh issue view "$issue_no" --json title,body,labels \
         -q '("# " + .title + "\n\n" + (if (.labels|length)>0 then "Labels: " + (.labels|map(.name)|join(", ")) + "\n\n" else "" end) + .body + "\n")' \
         > "$issue_file" 2>/dev/null
+
     if [ -s "$issue_file" ]; then
         echo "Implement the feature described in $issue_file" > "$input_file"
+        echo "For each iteration, create .tmp/commit-report-iter-N.txt with the full commit message." >&2
+        echo "If only .tmp/commit-msg-iter-N.txt exists, its first line will be used." >&2
+        echo "Once completed the implementation, create a $finalize_file file with the PR title and body." >&2
     else
-        echo "Implement issue #$issue_no" > "$input_file"
-        echo "Warning: failed to prefetch issue #$issue_no; using issue number prompt" >&2
+        echo "Error: Failed to fetch issue content for issue #$issue_no" >&2
+        return 1
     fi
 
     # Build yolo flag for acw
@@ -113,13 +119,20 @@ lol_cmd_impl() {
             return 1
         }
         if (cd "$worktree_path" && ! git diff --cached --quiet); then
-            # Check for per-iteration commit message file
+            # Use commit report file as commit message (fallback to commit-msg file)
             local commit_msg_file="$worktree_path/.tmp/commit-msg-iter-$iter.txt"
-            local commit_msg="chore: issue #$issue_no iteration $iter"
-            if [ -s "$commit_msg_file" ]; then
-                commit_msg="$(head -n1 "$commit_msg_file")"
+            local commit_report_file="$worktree_path/.tmp/commit-report-iter-$iter.txt"
+            local default_commit_msg="chore: issue #$issue_no iteration $iter"
+
+            if [ ! -s "$commit_report_file" ]; then
+                if [ -s "$commit_msg_file" ]; then
+                    printf "%s\n" "$(head -n1 "$commit_msg_file")" > "$commit_report_file"
+                else
+                    printf "%s\n" "$default_commit_msg" > "$commit_report_file"
+                fi
             fi
-            (cd "$worktree_path" && git commit -m "$commit_msg") || {
+
+            (cd "$worktree_path" && git commit -F "$commit_report_file") || {
                 echo "Error: Failed to commit iteration $iter" >&2
                 return 1
             }
@@ -127,12 +140,10 @@ lol_cmd_impl() {
             echo "No changes to commit for iteration $iter"
         fi
 
-        # Check for completion marker (prefer finalize.txt, accept legacy report.txt)
+        # Check for completion marker (finalize.txt only)
         local completion_file=""
         if [ -f "$finalize_file" ] && grep -q "Issue $issue_no resolved" "$finalize_file"; then
             completion_file="$finalize_file"
-        elif [ -f "$report_file" ] && grep -q "Issue $issue_no resolved" "$report_file"; then
-            completion_file="$report_file"
         fi
         if [ -n "$completion_file" ]; then
             echo "Completion marker found!"
@@ -150,12 +161,10 @@ lol_cmd_impl() {
     local completion_file=""
     if [ -f "$finalize_file" ] && grep -q "Issue $issue_no resolved" "$finalize_file"; then
         completion_file="$finalize_file"
-    elif [ -f "$report_file" ] && grep -q "Issue $issue_no resolved" "$report_file"; then
-        completion_file="$report_file"
     fi
     if [ -z "$completion_file" ]; then
         echo "Error: Max iteration limit ($max_iterations) reached without completion marker" >&2
-        echo "To continue, increase --max-iterations or create .tmp/finalize.txt (or .tmp/report.txt) with 'Issue $issue_no resolved'" >&2
+        echo "To continue, increase --max-iterations or create .tmp/finalize.txt with 'Issue $issue_no resolved'" >&2
         return 1
     fi
 
