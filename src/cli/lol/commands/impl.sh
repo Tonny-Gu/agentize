@@ -73,14 +73,13 @@ lol_cmd_impl() {
     local base_input_file="$worktree_path/.tmp/impl-input-base.txt"
     local output_file="$worktree_path/.tmp/impl-output.txt"
     local finalize_file="$worktree_path/.tmp/finalize.txt"
+    local report_file="$worktree_path/.tmp/report.txt"
 
     # Prefetch issue content (title/body/labels) for the initial prompt
     local issue_file="$worktree_path/.tmp/issue-${issue_no}.md"
-    gh issue view "$issue_no" --json title,body,labels \
+    if gh issue view "$issue_no" --json title,body,labels \
         -q '("# " + .title + "\n\n" + (if (.labels|length)>0 then "Labels: " + (.labels|map(.name)|join(", ")) + "\n\n" else "" end) + .body + "\n")' \
-        > "$issue_file" 2>/dev/null
-
-    if [ -s "$issue_file" ]; then
+        > "$issue_file" 2>/dev/null && [ -s "$issue_file" ]; then
         cat > "$base_input_file" <<EOF
 Primary goal: implement issue #$issue_no described in $issue_file.
 Each iteration:
@@ -90,6 +89,7 @@ EOF
         echo "For each iteration, create the per-iteration .tmp/commit-report-iter-<iter>.txt file with the full commit message." >&2
         echo "Once completed the implementation, create a $finalize_file file with the PR title and body." >&2
     else
+        rm -f "$issue_file"
         echo "Error: Failed to fetch issue content for issue #$issue_no" >&2
         return 1
     fi
@@ -137,12 +137,24 @@ EOF
             }
         fi
 
-        # Guard: require per-iteration commit report to be generated
+        # Check for completion marker (finalize.txt preferred, report.txt legacy)
+        local completion_file=""
+        if [ -f "$finalize_file" ] && grep -q "Issue $issue_no resolved" "$finalize_file"; then
+            completion_file="$finalize_file"
+        elif [ -f "$report_file" ] && grep -q "Issue $issue_no resolved" "$report_file"; then
+            completion_file="$report_file"
+        fi
+
+        # Guard: require per-iteration commit report when completing
         local commit_report_file="$worktree_path/.tmp/commit-report-iter-$iter.txt"
         if [ ! -s "$commit_report_file" ]; then
-            echo "Error: Missing commit report for iteration $iter" >&2
-            echo "Expected: $commit_report_file" >&2
-            return 1
+            if [ -n "$completion_file" ]; then
+                echo "Error: Missing commit report for iteration $iter" >&2
+                echo "Expected: $commit_report_file" >&2
+                return 1
+            fi
+            echo "Warning: Missing commit report for iteration $iter; skipping commit." >&2
+            continue
         fi
 
         # Stage and commit changes for this iteration
@@ -159,11 +171,6 @@ EOF
             echo "No changes to commit for iteration $iter"
         fi
 
-        # Check for completion marker (finalize.txt only)
-        local completion_file=""
-        if [ -f "$finalize_file" ] && grep -q "Issue $issue_no resolved" "$finalize_file"; then
-            completion_file="$finalize_file"
-        fi
         if [ -n "$completion_file" ]; then
             echo "Completion marker found!"
             break
@@ -176,10 +183,12 @@ EOF
     local completion_file=""
     if [ -f "$finalize_file" ] && grep -q "Issue $issue_no resolved" "$finalize_file"; then
         completion_file="$finalize_file"
+    elif [ -f "$report_file" ] && grep -q "Issue $issue_no resolved" "$report_file"; then
+        completion_file="$report_file"
     fi
     if [ -z "$completion_file" ]; then
         echo "Error: Max iteration limit ($max_iterations) reached without completion marker" >&2
-        echo "To continue, increase --max-iterations or create .tmp/finalize.txt with 'Issue $issue_no resolved'" >&2
+        echo "To continue, increase --max-iterations or create .tmp/finalize.txt (preferred) or .tmp/report.txt with 'Issue $issue_no resolved'" >&2
         return 1
     fi
 

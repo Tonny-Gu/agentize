@@ -128,6 +128,16 @@ export -f acw 2>/dev/null || true
 gh() {
     echo "gh $*" >> "$GH_CALL_LOG"
     case "$1" in
+        issue)
+            if [ "$2" = "view" ]; then
+                echo "# Stub Issue Title"
+                echo ""
+                echo "Labels: test"
+                echo ""
+                echo "Stub issue body."
+            fi
+            return 0
+            ;;
         pr)
             if [ "$2" = "create" ]; then
                 echo "https://github.com/test/repo/pull/1"
@@ -448,7 +458,7 @@ if ! grep -q "issue-123.md" "$STUB_WORKTREE/.tmp/impl-input-1.txt"; then
     test_fail "Expected impl-input-1.txt to reference issue-123.md"
 fi
 
-# ── Test 7: Issue prefetch fallback on failure ──
+# ── Test 7: Issue prefetch failure stops execution ──
 ITERATION_COUNT=0
 > "$ACW_CALL_LOG"
 > "$GH_CALL_LOG"
@@ -501,29 +511,22 @@ gh() {
 }
 export -f gh 2>/dev/null || true
 
-output=$(lol impl 456 --backend codex:gpt-5.2-codex 2>&1) || {
+output=$(lol impl 456 --backend codex:gpt-5.2-codex 2>&1) && {
     echo "Output: $output" >&2
-    test_fail "lol impl should succeed even when prefetch fails"
+    test_fail "lol impl should fail when prefetch fails"
 }
 
-# Verify warning was emitted about prefetch failure
-echo "$output" | grep -qi "warning\|failed.*prefetch\|issue.*456" || {
+# Verify error was emitted about prefetch failure
+echo "$output" | grep -qi "failed to fetch issue content" || {
     echo "Output: $output" >&2
-    test_fail "Expected warning about prefetch failure"
+    test_fail "Expected error about prefetch failure"
 }
 
-# Verify initial prompt falls back to simple issue number reference
-if grep -q "issue-456.md" "$STUB_WORKTREE/.tmp/impl-input-1.txt" 2>/dev/null; then
+# Verify no initial prompt file was written
+if [ -f "$STUB_WORKTREE/.tmp/impl-input-1.txt" ]; then
     echo "impl-input-1.txt content:" >&2
     cat "$STUB_WORKTREE/.tmp/impl-input-1.txt" >&2
-    test_fail "Expected impl-input-1.txt to NOT reference issue file on fallback"
-fi
-
-# Verify fallback prompt mentions issue number
-if ! grep -q "issue.*456\|#456" "$STUB_WORKTREE/.tmp/impl-input-1.txt"; then
-    echo "impl-input-1.txt content:" >&2
-    cat "$STUB_WORKTREE/.tmp/impl-input-1.txt" >&2
-    test_fail "Expected fallback prompt to mention issue number"
+    test_fail "Expected impl-input-1.txt to not be created on prefetch failure"
 fi
 
 # ── Test 8: Git commit after iteration when changes exist ──
@@ -569,6 +572,16 @@ export -f acw 2>/dev/null || true
 gh() {
     echo "gh $*" >> "$GH_CALL_LOG"
     case "$1" in
+        issue)
+            if [ "$2" = "view" ]; then
+                echo "# Stub Issue Title"
+                echo ""
+                echo "Labels: test"
+                echo ""
+                echo "Stub issue body."
+            fi
+            return 0
+            ;;
         pr) [ "$2" = "create" ] && echo "https://github.com/test/repo/pull/1"; return 0 ;;
         *) return 0 ;;
     esac
