@@ -604,6 +604,7 @@ _planner_run_pipeline() {
         plan_title=$(grep -m1 -E '^#[[:space:]]*(Implementation|Consensus) Plan:' "$consensus_path" \
             | sed -E 's/^#[[:space:]]*(Implementation|Consensus) Plan:[[:space:]]*//')
         [ -z "$plan_title" ] && plan_title="${feature_desc:0:50}"
+        plan_title=[\#${issue_number}] ${plan_title}
         _planner_issue_publish "$issue_number" "$plan_title" "$consensus_path" || {
             echo "Warning: Failed to publish plan to issue #${issue_number}" >&2
         }
