@@ -70,7 +70,6 @@ lol_cmd_impl() {
     mkdir -p "$worktree_path/.tmp"
 
     # Initialize input/output files
-    local input_file="$worktree_path/.tmp/impl-input.txt"
     local base_input_file="$worktree_path/.tmp/impl-input-base.txt"
     local output_file="$worktree_path/.tmp/impl-output.txt"
     local finalize_file="$worktree_path/.tmp/finalize.txt"
@@ -88,7 +87,6 @@ Each iteration:
 - create the commit report file for the current iteration in .tmp (the exact filename will be provided each iteration).
 - update $finalize_file with PR title (first line) and body (full file); include "Issue $issue_no resolved" only when done.
 EOF
-        cp "$base_input_file" "$input_file"
         echo "For each iteration, create the per-iteration .tmp/commit-report-iter-<iter>.txt file with the full commit message." >&2
         echo "Once completed the implementation, create a $finalize_file file with the PR title and body." >&2
     else
@@ -107,6 +105,7 @@ EOF
     while [ $iter -lt "$max_iterations" ]; do
         iter=$((iter + 1))
         echo "Iteration $iter/$max_iterations..."
+        local input_file="$worktree_path/.tmp/impl-input-$iter.txt"
 
         # Build input from original issue + last iteration output (if any)
         if [ -s "$base_input_file" ]; then

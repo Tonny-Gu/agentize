@@ -379,7 +379,7 @@ ITERATION_COUNT=0
 > "$GH_CALL_LOG"
 rm -f "$STUB_WORKTREE/.tmp/finalize.txt"
 rm -f "$STUB_WORKTREE/.tmp/issue-123.md"
-rm -f "$STUB_WORKTREE/.tmp/impl-input.txt"
+rm -f "$STUB_WORKTREE/.tmp/impl-input-"*
 
 # Create completion marker immediately
 mkdir -p "$STUB_WORKTREE/.tmp"
@@ -442,10 +442,10 @@ if [ ! -f "$STUB_WORKTREE/.tmp/issue-123.md" ]; then
 fi
 
 # Verify initial prompt references the issue file
-if ! grep -q "issue-123.md" "$STUB_WORKTREE/.tmp/impl-input.txt"; then
-    echo "impl-input.txt content:" >&2
-    cat "$STUB_WORKTREE/.tmp/impl-input.txt" >&2
-    test_fail "Expected impl-input.txt to reference issue-123.md"
+if ! grep -q "issue-123.md" "$STUB_WORKTREE/.tmp/impl-input-1.txt"; then
+    echo "impl-input-1.txt content:" >&2
+    cat "$STUB_WORKTREE/.tmp/impl-input-1.txt" >&2
+    test_fail "Expected impl-input-1.txt to reference issue-123.md"
 fi
 
 # ── Test 7: Issue prefetch fallback on failure ──
@@ -453,7 +453,7 @@ ITERATION_COUNT=0
 > "$ACW_CALL_LOG"
 > "$GH_CALL_LOG"
 rm -f "$STUB_WORKTREE/.tmp/issue-456.md"
-rm -f "$STUB_WORKTREE/.tmp/impl-input.txt"
+rm -f "$STUB_WORKTREE/.tmp/impl-input-"*
 
 # Update wt stub to return different worktree for issue 456
 wt() {
@@ -513,16 +513,16 @@ echo "$output" | grep -qi "warning\|failed.*prefetch\|issue.*456" || {
 }
 
 # Verify initial prompt falls back to simple issue number reference
-if grep -q "issue-456.md" "$STUB_WORKTREE/.tmp/impl-input.txt" 2>/dev/null; then
-    echo "impl-input.txt content:" >&2
-    cat "$STUB_WORKTREE/.tmp/impl-input.txt" >&2
-    test_fail "Expected impl-input.txt to NOT reference issue file on fallback"
+if grep -q "issue-456.md" "$STUB_WORKTREE/.tmp/impl-input-1.txt" 2>/dev/null; then
+    echo "impl-input-1.txt content:" >&2
+    cat "$STUB_WORKTREE/.tmp/impl-input-1.txt" >&2
+    test_fail "Expected impl-input-1.txt to NOT reference issue file on fallback"
 fi
 
 # Verify fallback prompt mentions issue number
-if ! grep -q "issue.*456\|#456" "$STUB_WORKTREE/.tmp/impl-input.txt"; then
-    echo "impl-input.txt content:" >&2
-    cat "$STUB_WORKTREE/.tmp/impl-input.txt" >&2
+if ! grep -q "issue.*456\|#456" "$STUB_WORKTREE/.tmp/impl-input-1.txt"; then
+    echo "impl-input-1.txt content:" >&2
+    cat "$STUB_WORKTREE/.tmp/impl-input-1.txt" >&2
     test_fail "Expected fallback prompt to mention issue number"
 fi
 
