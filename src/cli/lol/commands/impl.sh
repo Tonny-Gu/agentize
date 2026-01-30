@@ -237,6 +237,7 @@ EOF
 
     # Get PR body from full completion file
     local pr_body
+    echo "Closes #$issue_no" >> "$completion_file"
     pr_body=$(cat "$completion_file")
 
     # Create PR using gh CLI with explicit base branch
