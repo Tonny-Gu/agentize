@@ -83,11 +83,13 @@ _lol_cmd_impl() {
         cat > "$base_input_file" <<EOF
 Primary goal: implement issue #$issue_no described in $issue_file.
 Each iteration:
-- create the commit report file for the current iteration in .tmp (the exact filename will be provided each iteration).
+- read the issue file for the context, and read the current repo file state to determine what to do next to achieve the goal.
+- it is ok to fail some test cases temporarily at the end of an iteration, as long as they are properly reported for further development.
+- create the commit report file for the current iteration in .tmp/commit-report-iter-<iter>.txt with the full commit message for this iteration.
 - update $finalize_file with PR title (first line) and body (full file); include "Issue $issue_no resolved" only when done.
+- before claiming completion, ensure you have the goal described in the issue file fully implemented, and all tests are passing.
+- once completed the implementation, create a $finalize_file file with the PR title and body, including "closes #$issue_no" at the end of the body.
 EOF
-        echo "For each iteration, create the per-iteration .tmp/commit-report-iter-<iter>.txt file with the full commit message." >&2
-        echo "Once completed the implementation, create a $finalize_file file with the PR title and body." >&2
     else
         rm -f "$issue_file"
         echo "Error: Failed to fetch issue content for issue #$issue_no" >&2
