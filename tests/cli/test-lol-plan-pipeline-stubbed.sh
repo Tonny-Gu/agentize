@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Test: Pipeline flow with stubbed acw and consensus script
-# Tests YAML-based backend overrides plus default (quiet) and --verbose modes via lol plan
+# Tests YAML-driven pipeline execution, backend overrides, and parallel execution
 
 source "$(dirname "$0")/../common.sh"
 
@@ -137,5 +137,32 @@ echo "$output_verbose" | grep -q "Stage" || {
     echo "Pipeline output: $output_verbose" >&2
     test_fail "Verbose output should include stage progress"
 }
+
+# ── Test 3: Verify pipeline YAML exists and is valid ──
+test_info "Verifying pipeline YAML descriptors"
+
+ULTRA_PIPELINE="$PROJECT_ROOT/src/cli/planner/pipelines/ultra.yaml"
+MEGA_PIPELINE="$PROJECT_ROOT/src/cli/planner/pipelines/mega.yaml"
+
+if [ ! -f "$ULTRA_PIPELINE" ]; then
+    test_fail "Ultra pipeline descriptor not found: $ULTRA_PIPELINE"
+fi
+
+if [ ! -f "$MEGA_PIPELINE" ]; then
+    test_fail "Mega pipeline descriptor not found: $MEGA_PIPELINE"
+fi
+
+# Verify pipeline descriptors are valid YAML with required structure
+python3 -c "
+import sys
+sys.path.insert(0, '$PROJECT_ROOT/.claude-plugin')
+from lib.local_config_io import parse_yaml_file
+from pathlib import Path
+
+for pipeline in ['$ULTRA_PIPELINE', '$MEGA_PIPELINE']:
+    data = parse_yaml_file(Path(pipeline))
+    assert 'stages' in data, f'Missing stages in {pipeline}'
+    assert len(data['stages']) >= 3, f'Expected at least 3 stages in {pipeline}'
+" || test_fail "Failed to validate pipeline descriptors"
 
 test_pass "Pipeline generates all stage artifacts with stubbed acw and consensus"

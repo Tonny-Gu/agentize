@@ -1,0 +1,51 @@
+# Ultra-Planner pipeline (4-agent debate)
+name: ultra
+description: Single-proposer debate with understander, bold-proposer, critique, reducer
+
+stages:
+  - name: understander
+    label: "Stage 1/5: Running understander"
+    agents:
+      - name: understander
+        agent_md: .claude-plugin/agents/understander.md
+        backend_key: understander
+        default_backend: claude:sonnet
+        tools: Read,Grep,Glob
+        permission_mode: ""
+        plan_guideline: false
+        inputs: []
+
+  - name: bold-proposer
+    label: "Stage 2/5: Running bold-proposer"
+    agents:
+      - name: bold
+        agent_md: .claude-plugin/agents/bold-proposer.md
+        backend_key: bold
+        default_backend: claude:opus
+        tools: Read,Grep,Glob,WebSearch,WebFetch
+        permission_mode: plan
+        plan_guideline: true
+        inputs:
+          - understander
+
+  - name: critique-reducer
+    label: "Stage 3-4/5: Running critique and reducer"
+    agents:
+      - name: critique
+        agent_md: .claude-plugin/agents/proposal-critique.md
+        backend_key: critique
+        default_backend: claude:opus
+        tools: Read,Grep,Glob,Bash
+        permission_mode: ""
+        plan_guideline: true
+        inputs:
+          - bold
+      - name: reducer
+        agent_md: .claude-plugin/agents/proposal-reducer.md
+        backend_key: reducer
+        default_backend: claude:opus
+        tools: Read,Grep,Glob
+        permission_mode: ""
+        plan_guideline: true
+        inputs:
+          - bold
