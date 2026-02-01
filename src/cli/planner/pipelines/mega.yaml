@@ -1,0 +1,72 @@
+# Mega-Planner pipeline (5-agent dual-proposer debate)
+name: mega
+description: Dual-proposer debate with understander, bold, paranoia, critique, reducer, code-reducer
+
+stages:
+  - name: understander
+    label: "Stage 1/6: Running understander"
+    agents:
+      - name: understander
+        agent_md: .claude-plugin/agents/understander.md
+        backend_key: understander
+        default_backend: claude:sonnet
+        tools: Read,Grep,Glob
+        permission_mode: ""
+        plan_guideline: false
+        inputs: []
+
+  - name: proposers
+    label: "Stage 2-3/6: Running bold and paranoia proposers"
+    agents:
+      - name: bold
+        agent_md: .claude-plugin/agents/mega-bold-proposer.md
+        backend_key: bold
+        default_backend: claude:opus
+        tools: Read,Grep,Glob,WebSearch,WebFetch
+        permission_mode: plan
+        plan_guideline: true
+        inputs:
+          - understander
+      - name: paranoia
+        agent_md: .claude-plugin/agents/mega-paranoia-proposer.md
+        backend_key: paranoia
+        default_backend: claude:opus
+        tools: Read,Grep,Glob,WebSearch,WebFetch
+        permission_mode: plan
+        plan_guideline: true
+        inputs:
+          - understander
+
+  - name: reviewers
+    label: "Stage 4-6/6: Running critique, reducer, and code-reducer"
+    agents:
+      - name: critique
+        agent_md: .claude-plugin/agents/mega-proposal-critique.md
+        backend_key: critique
+        default_backend: claude:opus
+        tools: Read,Grep,Glob,Bash
+        permission_mode: ""
+        plan_guideline: true
+        inputs:
+          - bold
+          - paranoia
+      - name: reducer
+        agent_md: .claude-plugin/agents/mega-proposal-reducer.md
+        backend_key: reducer
+        default_backend: claude:opus
+        tools: Read,Grep,Glob
+        permission_mode: ""
+        plan_guideline: true
+        inputs:
+          - bold
+          - paranoia
+      - name: code-reducer
+        agent_md: .claude-plugin/agents/mega-code-reducer.md
+        backend_key: code-reducer
+        default_backend: claude:opus
+        tools: Read,Grep,Glob
+        permission_mode: ""
+        plan_guideline: true
+        inputs:
+          - bold
+          - paranoia

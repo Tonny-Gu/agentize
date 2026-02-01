@@ -243,14 +243,15 @@ _planner_acw_run() {
 
 # ── Prompt rendering ──
 
-# Render a prompt by concatenating agent base prompt, optional plan-guideline, and context
-# Usage: _planner_render_prompt <output-file> <agent-md-path> <include-plan-guideline> <feature-desc> [context-file]
+# Render a prompt by concatenating agent base prompt, optional plan-guideline, feature desc, and context files
+# Usage: _planner_render_prompt <output-file> <agent-md-path> <include-plan-guideline> <feature-desc> [context-file...]
 _planner_render_prompt() {
     local output_file="$1"
     local agent_md="$2"
     local include_plan_guideline="$3"
     local feature_desc="$4"
-    local context_file="${5:-}"
+    shift 4
+    local -a context_files=("$@")
 
     local repo_root="${AGENTIZE_HOME:-$(git rev-parse --show-toplevel 2>/dev/null)}"
     if [ -z "$repo_root" ] || [ ! -d "$repo_root" ]; then
@@ -287,15 +288,23 @@ _planner_render_prompt() {
     echo "" >> "$output_file"
     echo "$feature_desc" >> "$output_file"
 
-    # Append context from previous stage if provided
-    if [ -n "$context_file" ] && [ -f "$context_file" ]; then
-        echo "" >> "$output_file"
-        echo "---" >> "$output_file"
-        echo "" >> "$output_file"
-        echo "# Previous Stage Output" >> "$output_file"
-        echo "" >> "$output_file"
-        cat "$context_file" >> "$output_file"
-    fi
+    # Append context from previous stages (variadic)
+    local context_idx=0
+    for context_file in "${context_files[@]}"; do
+        if [ -n "$context_file" ] && [ -f "$context_file" ]; then
+            echo "" >> "$output_file"
+            echo "---" >> "$output_file"
+            echo "" >> "$output_file"
+            if [ $context_idx -eq 0 ]; then
+                echo "# Previous Stage Output" >> "$output_file"
+            else
+                echo "# Additional Context ($((context_idx + 1)))" >> "$output_file"
+            fi
+            echo "" >> "$output_file"
+            cat "$context_file" >> "$output_file"
+            context_idx=$((context_idx + 1))
+        fi
+    done
     return 0
 }
 
@@ -315,18 +324,265 @@ _planner_stage() {
     echo "$@" >&2
 }
 
+# Execute a single agent stage
+# Usage: _planner_exec_agent <name> <agent-md> <backend> <tools> <permission-mode> <plan-guideline> <input-path> <output-path> <feature-desc> [context-file...]
+_planner_exec_agent() {
+    local name="$1"
+    local agent_md="$2"
+    local backend="$3"
+    local tools="$4"
+    local permission_mode="$5"
+    local plan_guideline="$6"
+    local input_path="$7"
+    local output_path="$8"
+    local feature_desc="$9"
+    shift 9
+    local -a context_files=("$@")
+
+    # Render prompt with multiple context files
+    if ! _planner_render_prompt "$input_path" "$agent_md" "$plan_guideline" "$feature_desc" "${context_files[@]}"; then
+        echo "Error: ${name} prompt rendering failed" >&2
+        return 2
+    fi
+
+    # Execute agent via acw
+    _planner_acw_run "$backend" "$input_path" "$output_path" "$tools" "$permission_mode"
+    local exit_code=$?
+
+    if [ $exit_code -ne 0 ] || [ ! -s "$output_path" ]; then
+        echo "Error: ${name} stage failed (exit code: $exit_code)" >&2
+        return 2
+    fi
+
+    return 0
+}
+
+# Load and parse pipeline descriptor from YAML file
+# Usage: _planner_load_pipeline <yaml-path> <backend-overrides> [global-backend]
+# Outputs: Line-separated stage commands in format:
+#   STAGE:<label>:<parallel-agent-count>
+#   AGENT:<name>|<agent_md>|<backend>|<tools>|<permission>|<plan_guideline>|<inputs-comma-sep>
+#   STAGE_END
+_planner_load_pipeline() {
+    local yaml_path="$1"
+    local backend_overrides="$2"
+    local global_backend="${3:-}"
+    local repo_root="${AGENTIZE_HOME:-$(git rev-parse --show-toplevel 2>/dev/null)}"
+
+    PIPELINE_YAML_PATH="$yaml_path" \
+    PIPELINE_BACKENDS="$backend_overrides" \
+    PIPELINE_GLOBAL_BACKEND="$global_backend" \
+    PIPELINE_REPO_ROOT="$repo_root" \
+    python3 - <<'PY'
+import os
+import sys
+from pathlib import Path
+
+yaml_path = Path(os.environ.get("PIPELINE_YAML_PATH", ""))
+backend_overrides_str = os.environ.get("PIPELINE_BACKENDS", "")
+global_backend = os.environ.get("PIPELINE_GLOBAL_BACKEND", "")
+repo_root = Path(os.environ.get("PIPELINE_REPO_ROOT", "."))
+
+if not yaml_path.is_file():
+    print(f"Error: Pipeline file not found: {yaml_path}", file=sys.stderr)
+    sys.exit(1)
+
+# Parse backend overrides
+overrides = {}
+for line in backend_overrides_str.strip().split("\n"):
+    if "=" in line:
+        k, v = line.split("=", 1)
+        overrides[k.strip()] = v.strip()
+
+# Parse YAML
+try:
+    import yaml
+    with open(yaml_path) as f:
+        data = yaml.safe_load(f)
+except ImportError:
+    # Fallback to local_config_io
+    plugin_dir = repo_root / ".claude-plugin"
+    if plugin_dir.is_dir():
+        sys.path.insert(0, str(plugin_dir))
+    try:
+        from lib.local_config_io import parse_yaml_file
+        data = parse_yaml_file(yaml_path)
+    except ImportError:
+        print("Error: Neither PyYAML nor local_config_io available", file=sys.stderr)
+        sys.exit(1)
+
+if not isinstance(data, dict) or "stages" not in data:
+    print("Error: Pipeline must have 'stages' key", file=sys.stderr)
+    sys.exit(1)
+
+for stage in data["stages"]:
+    label = stage.get("label", stage.get("name", "unknown"))
+    agents = stage.get("agents", [])
+    print(f"STAGE:{label}:{len(agents)}")
+
+    for agent in agents:
+        name = agent.get("name", "unknown")
+        agent_md = agent.get("agent_md", "")
+        if not agent_md:
+            print(f"Error: Agent '{name}' missing agent_md path", file=sys.stderr)
+            sys.exit(1)
+        backend_key = agent.get("backend_key", name)
+        default_backend = agent.get("default_backend", "claude:opus")
+        tools = agent.get("tools", "Read,Grep,Glob")
+        permission = agent.get("permission_mode", "")
+        plan_guideline = "true" if agent.get("plan_guideline", False) else "false"
+        inputs = ",".join(agent.get("inputs", []))
+
+        # Resolve backend: override > global > default
+        backend = overrides.get(backend_key) or global_backend or default_backend
+
+        print(f"AGENT:{name}|{agent_md}|{backend}|{tools}|{permission}|{plan_guideline}|{inputs}")
+
+    print("STAGE_END")
+PY
+}
+
+# Execute pipeline from parsed stage commands
+# Usage: _planner_exec_pipeline <pipeline-yaml> <prefix> <feature-desc> <backend-overrides> <global-backend> <verbose>
+_planner_exec_pipeline() {
+    local pipeline_yaml="$1"
+    local prefix="$2"
+    local feature_desc="$3"
+    local backend_overrides="$4"
+    local global_backend="$5"
+    local verbose="$6"
+
+    # Get parsed commands from Python
+    local commands
+    commands=$(_planner_load_pipeline "$pipeline_yaml" "$backend_overrides" "$global_backend") || {
+        echo "Error: Pipeline parsing failed" >&2
+        return 1
+    }
+
+    local stage_count=0
+
+    # Track agent outputs for input resolution
+    declare -A agent_outputs
+
+    local current_label=""
+    local agents_in_stage=0
+    local -a pids=()
+    local -a agent_names=()
+    local -a agent_output_paths=()
+    local t_stage
+
+    while IFS= read -r line; do
+        case "$line" in
+            STAGE:*)
+                # Parse: STAGE:<label>:<agent_count>
+                local stage_info="${line#STAGE:}"
+                current_label="${stage_info%:*}"
+                agents_in_stage="${stage_info##*:}"
+                stage_count=$((stage_count + 1))
+                t_stage=$(_planner_timer_start)
+                pids=()
+                agent_names=()
+                agent_output_paths=()
+                _planner_anim_start "$current_label"
+                ;;
+
+            AGENT:*)
+                # Parse: AGENT:<name>|<agent_md>|<backend>|<tools>|<permission>|<plan_guideline>|<inputs>
+                local agent_line="${line#AGENT:}"
+                IFS='|' read -r name agent_md backend tools permission plan_guideline inputs_str <<< "$agent_line"
+
+                local input_path="${prefix}-${name}-input.md"
+                local output_path="${prefix}-${name}.txt"
+
+                agent_names+=("$name")
+                agent_output_paths+=("$output_path")
+
+                # Resolve input files from previous agent outputs
+                local -a context_files=()
+                if [ -n "$inputs_str" ]; then
+                    IFS=',' read -ra input_names <<< "$inputs_str"
+                    for input_name in "${input_names[@]}"; do
+                        if [ -n "${agent_outputs[$input_name]:-}" ]; then
+                            context_files+=("${agent_outputs[$input_name]}")
+                        fi
+                    done
+                fi
+
+                if [ "$agents_in_stage" -eq 1 ]; then
+                    # Sequential execution
+                    _planner_exec_agent "$name" "$agent_md" "$backend" "$tools" "$permission" "$plan_guideline" \
+                        "$input_path" "$output_path" "$feature_desc" "${context_files[@]}"
+                    local exit_code=$?
+                    _planner_anim_stop
+                    if [ $exit_code -ne 0 ]; then
+                        return $exit_code
+                    fi
+                    _planner_timer_log "$name" "$t_stage"
+                    _planner_log "$verbose" "  ${name} complete: $output_path"
+                else
+                    # Parallel execution
+                    _planner_exec_agent "$name" "$agent_md" "$backend" "$tools" "$permission" "$plan_guideline" \
+                        "$input_path" "$output_path" "$feature_desc" "${context_files[@]}" &
+                    pids+=($!)
+                fi
+                ;;
+
+            STAGE_END)
+                # Wait for parallel agents
+                if [ "$agents_in_stage" -gt 1 ] && [ ${#pids[@]} -gt 0 ]; then
+                    local all_success=true
+                    for i in "${!pids[@]}"; do
+                        wait "${pids[$i]}" || all_success=false
+                        local aout="${agent_output_paths[$i]}"
+                        if [ ! -s "$aout" ]; then
+                            all_success=false
+                        fi
+                    done
+                    _planner_anim_stop
+                    if [ "$all_success" != "true" ]; then
+                        echo "Error: One or more agents in stage failed" >&2
+                        return 2
+                    fi
+                    _planner_timer_log "${current_label}" "$t_stage"
+                    for i in "${!agent_names[@]}"; do
+                        _planner_log "$verbose" "  ${agent_names[$i]} complete: ${agent_output_paths[$i]}"
+                    done
+                fi
+
+                # Record outputs for downstream input resolution
+                for i in "${!agent_names[@]}"; do
+                    agent_outputs["${agent_names[$i]}"]="${agent_output_paths[$i]}"
+                done
+                _planner_log "$verbose" ""
+                ;;
+        esac
+    done <<< "$commands"
+
+    return 0
+}
+
 # Run the full multi-agent debate pipeline
-# Usage: _planner_run_pipeline "<feature-description>" [issue-mode] [verbose] [refine-issue-number]
+# Usage: _planner_run_pipeline "<feature-description>" [issue-mode] [verbose] [refine-issue-number] [pipeline-type]
+# pipeline-type: "ultra" (default) or "mega"
 _planner_run_pipeline() {
     local feature_desc="$1"
     local issue_mode="${2:-true}"
     local verbose="${3:-false}"
     local refine_issue_number="${4:-}"
+    local pipeline_type="${5:-ultra}"
     local repo_root="${AGENTIZE_HOME:-$(git rev-parse --show-toplevel 2>/dev/null)}"
     if [ -z "$repo_root" ] || [ ! -d "$repo_root" ]; then
         echo "Error: Could not determine repo root. Set AGENTIZE_HOME or run inside a git repo." >&2
         return 1
     fi
+
+    # Select pipeline YAML
+    local pipeline_yaml="$repo_root/src/cli/planner/pipelines/${pipeline_type}.yaml"
+    if [ ! -f "$pipeline_yaml" ]; then
+        echo "Error: Pipeline descriptor not found: $pipeline_yaml" >&2
+        return 1
+    fi
+
     local timestamp
     timestamp=$(date +%Y%m%d-%H%M%S)
 
@@ -381,197 +637,43 @@ _planner_run_pipeline() {
 
     local prefix="$repo_root/.tmp/${prefix_name}"
 
-    # File paths for each stage
-    local understander_input="${prefix}-understander-input.md"
-    local understander_output="${prefix}-understander.txt"
-    local bold_input="${prefix}-bold-input.md"
-    local bold_output="${prefix}-bold.txt"
-    local critique_input="${prefix}-critique-input.md"
-    local critique_output="${prefix}-critique.txt"
-    local reducer_input="${prefix}-reducer-input.md"
-    local reducer_output="${prefix}-reducer.txt"
-
+    # Load backend configuration
     local config_start_dir="${PWD:-$(pwd)}"
-    local planner_backend=""
-    local planner_understander=""
-    local planner_bold=""
-    local planner_critique=""
-    local planner_reducer=""
+    local global_backend=""
+    local backend_overrides=""
     local backend_config
     backend_config=$(_planner_load_backend_config "$repo_root" "$config_start_dir") || return 1
     if [ -n "$backend_config" ]; then
         while IFS='=' read -r key value; do
-            case "$key" in
-                backend)
-                    planner_backend="$value"
-                    ;;
-                understander)
-                    planner_understander="$value"
-                    ;;
-                bold)
-                    planner_bold="$value"
-                    ;;
-                critique)
-                    planner_critique="$value"
-                    ;;
-                reducer)
-                    planner_reducer="$value"
-                    ;;
-            esac
+            if [ "$key" = "backend" ]; then
+                global_backend="$value"
+            else
+                backend_overrides="${backend_overrides}${key}=${value}"$'\n'
+            fi
         done <<< "$backend_config"
     fi
 
-    if ! _planner_validate_backend "$planner_backend" "planner.backend"; then
+    # Validate global backend if set
+    if ! _planner_validate_backend "$global_backend" "planner.backend"; then
         return 1
     fi
-    if ! _planner_validate_backend "$planner_understander" "planner.understander"; then
-        return 1
-    fi
-    if ! _planner_validate_backend "$planner_bold" "planner.bold"; then
-        return 1
-    fi
-    if ! _planner_validate_backend "$planner_critique" "planner.critique"; then
-        return 1
-    fi
-    if ! _planner_validate_backend "$planner_reducer" "planner.reducer"; then
-        return 1
-    fi
-
-    local default_understander="claude:sonnet"
-    local default_bold="claude:opus"
-    local default_critique="claude:opus"
-    local default_reducer="claude:opus"
-    if [ -n "$planner_backend" ]; then
-        default_understander="$planner_backend"
-        default_bold="$planner_backend"
-        default_critique="$planner_backend"
-        default_reducer="$planner_backend"
-    fi
-    local understander_backend="${planner_understander:-$default_understander}"
-    local bold_backend="${planner_bold:-$default_bold}"
-    local critique_backend="${planner_critique:-$default_critique}"
-    local reducer_backend="${planner_reducer:-$default_reducer}"
 
     _planner_stage "Starting multi-agent debate pipeline..."
     _planner_print_feature "$feature_desc"
     _planner_log "$verbose" "Artifacts prefix: ${prefix_name}"
+    _planner_log "$verbose" "Pipeline: ${pipeline_type}"
     _planner_log "$verbose" ""
 
-    # ── Stage 1: Understander ──
-    local t_understander
-    t_understander=$(_planner_timer_start)
-    _planner_anim_start "Stage 1/5: Running understander (${understander_backend})"
-    if ! _planner_render_prompt "$understander_input" \
-        ".claude-plugin/agents/understander.md" \
-        "false" \
-        "$feature_desc"; then
-        _planner_anim_stop
-        echo "Error: Understander prompt rendering failed" >&2
+    # Execute pipeline from YAML descriptor
+    if ! _planner_exec_pipeline "$pipeline_yaml" "$prefix" "$feature_desc" "$backend_overrides" "$global_backend" "$verbose"; then
         return 2
     fi
 
-    _planner_acw_run "$understander_backend" "$understander_input" "$understander_output" \
-        "Read,Grep,Glob"
-    local understander_exit=$?
-    _planner_anim_stop
-
-    if [ $understander_exit -ne 0 ] || [ ! -s "$understander_output" ]; then
-        echo "Error: Understander stage failed (exit code: $understander_exit)" >&2
-        return 2
-    fi
-    _planner_timer_log "understander" "$t_understander"
-    _planner_log "$verbose" "  Understander complete: $understander_output"
-    _planner_log "$verbose" ""
-
-    # ── Stage 2: Bold-proposer ──
-    local t_bold
-    t_bold=$(_planner_timer_start)
-    _planner_anim_start "Stage 2/5: Running bold-proposer (${bold_backend})"
-    if ! _planner_render_prompt "$bold_input" \
-        ".claude-plugin/agents/bold-proposer.md" \
-        "true" \
-        "$feature_desc" \
-        "$understander_output"; then
-        _planner_anim_stop
-        echo "Error: Bold-proposer prompt rendering failed" >&2
-        return 2
-    fi
-
-    _planner_acw_run "$bold_backend" "$bold_input" "$bold_output" \
-        "Read,Grep,Glob,WebSearch,WebFetch" \
-        "plan"
-    local bold_exit=$?
-    _planner_anim_stop
-
-    if [ $bold_exit -ne 0 ] || [ ! -s "$bold_output" ]; then
-        echo "Error: Bold-proposer stage failed (exit code: $bold_exit)" >&2
-        return 2
-    fi
-    _planner_timer_log "bold-proposer" "$t_bold"
-    _planner_log "$verbose" "  Bold-proposer complete: $bold_output"
-    _planner_log "$verbose" ""
-
-    # ── Stage 3 & 4: Critique and Reducer (parallel) ──
-    local t_parallel
-    t_parallel=$(_planner_timer_start)
-    _planner_anim_start "Stage 3-4/5: Running critique and reducer in parallel (${critique_backend}, ${reducer_backend})"
-
-    # Critique
-    if ! _planner_render_prompt "$critique_input" \
-        ".claude-plugin/agents/proposal-critique.md" \
-        "true" \
-        "$feature_desc" \
-        "$bold_output"; then
-        _planner_anim_stop
-        echo "Error: Critique prompt rendering failed" >&2
-        return 2
-    fi
-
-    _planner_acw_run "$critique_backend" "$critique_input" "$critique_output" \
-        "Read,Grep,Glob,Bash" &
-    local critique_pid=$!
-
-    # Reducer
-    if ! _planner_render_prompt "$reducer_input" \
-        ".claude-plugin/agents/proposal-reducer.md" \
-        "true" \
-        "$feature_desc" \
-        "$bold_output"; then
-        _planner_anim_stop
-        echo "Error: Reducer prompt rendering failed" >&2
-        return 2
-    fi
-
-    _planner_acw_run "$reducer_backend" "$reducer_input" "$reducer_output" \
-        "Read,Grep,Glob" &
-    local reducer_pid=$!
-
-    # Wait for both and capture exit codes
-    local critique_exit=0
-    local reducer_exit=0
-    wait $critique_pid || critique_exit=$?
-    wait $reducer_pid || reducer_exit=$?
-    _planner_anim_stop
-
-    if [ $critique_exit -ne 0 ] || [ ! -s "$critique_output" ]; then
-        echo "Error: Critique stage failed (exit code: $critique_exit)" >&2
-        return 2
-    fi
-    _planner_timer_log "critique" "$t_parallel"
-    _planner_log "$verbose" "  Critique complete: $critique_output"
-
-    if [ $reducer_exit -ne 0 ] || [ ! -s "$reducer_output" ]; then
-        echo "Error: Reducer stage failed (exit code: $reducer_exit)" >&2
-        return 2
-    fi
-    _planner_timer_log "reducer" "$t_parallel"
-    _planner_log "$verbose" "  Reducer complete: $reducer_output"
-    _planner_log "$verbose" ""
-
-    # ── Stage 5: External Consensus ──
+    # ── Final Stage: External Consensus ──
+    # (Kept as special post-pipeline step - not part of YAML descriptor)
     local t_consensus
     t_consensus=$(_planner_timer_start)
-    _planner_anim_start "Stage 5/5: Running external consensus synthesis"
+    _planner_anim_start "Final Stage: Running external consensus synthesis"
 
     local consensus_script="${_PLANNER_CONSENSUS_SCRIPT:-$repo_root/.claude-plugin/skills/external-consensus/scripts/external-consensus.sh}"
 
@@ -581,8 +683,20 @@ _planner_run_pipeline() {
         return 2
     fi
 
+    # Get output paths for consensus inputs based on pipeline type
+    local bold_output="${prefix}-bold.txt"
+    local critique_output="${prefix}-critique.txt"
+    local reducer_output="${prefix}-reducer.txt"
+    local -a consensus_inputs=("$bold_output" "$critique_output" "$reducer_output")
+
+    if [ "$pipeline_type" = "mega" ]; then
+        local paranoia_output="${prefix}-paranoia.txt"
+        local code_reducer_output="${prefix}-code-reducer.txt"
+        consensus_inputs=("$bold_output" "$paranoia_output" "$critique_output" "$reducer_output" "$code_reducer_output")
+    fi
+
     local consensus_path
-    consensus_path=$("$consensus_script" "$bold_output" "$critique_output" "$reducer_output" | tail -n 1)
+    consensus_path=$("$consensus_script" "${consensus_inputs[@]}" | tail -n 1)
     local consensus_exit=$?
     _planner_anim_stop
 
