@@ -139,7 +139,7 @@ def run_acw(
     tools: str | None = None,
     permission_mode: str | None = None,
     extra_flags: list[str] | None = None,
-    timeout: int = 900,
+    timeout: int = 3600,
 ) -> subprocess.CompletedProcess:
     """Run acw shell function for a single stage.
 
