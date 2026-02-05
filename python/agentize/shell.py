@@ -28,14 +28,6 @@ def get_agentize_home() -> str:
 
 def resolve_repo_root() -> Path:
     """Resolve repo root using AGENTIZE_HOME semantics or git rev-parse fallback."""
-    env_home = os.environ.get("AGENTIZE_HOME")
-    if env_home:
-        return Path(env_home).expanduser()
-
-    try:
-        return Path(get_agentize_home())
-    except RuntimeError:
-        pass
 
     result = subprocess.run(
         ["git", "rev-parse", "--show-toplevel"],
@@ -48,7 +40,7 @@ def resolve_repo_root() -> Path:
             return Path(root)
 
     raise RuntimeError(
-        "Could not determine repo root. Set AGENTIZE_HOME or run inside a git repo."
+        "Could not determine repo root. Please run inside a git repo."
     )
 
 
