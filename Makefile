@@ -1,5 +1,5 @@
 # Default target
-.PHONY: test test-shells test-sdk test-cli test-lint test-e2e test-fast help setup pre-commit sandbox-build sandbox-run
+.PHONY: test test-shells test-sdk test-cli test-lint test-e2e test-fast help setup env pre-commit sandbox-build sandbox-run
 
 test:
 	./tests/test-all.sh
@@ -72,6 +72,10 @@ setup:
 	@echo "  2. For persistence, add to your shell RC file:"
 	@echo "     cat setup.sh >> ~/.bashrc  # or ~/.zshrc"
 
+env:
+	@echo 'export AGENTIZE_HOME="$(CURDIR)"'
+	@echo 'export PYTHONPATH="$(CURDIR)/python:$$PYTHONPATH"'
+
 help:
 	@echo "Available targets:"
 	@echo "  make test                - Run all tests (bash only)"
@@ -82,6 +86,7 @@ help:
 	@echo "  make test-e2e            - Run end-to-end integration tests"
 	@echo "  make test-fast           - Run fast tests (sdk + cli + lint)"
 	@echo "  make setup               - Generate local setup.sh for development"
+	@echo "  make env                 - Print environment exports (use: eval $$(make env))"
 	@echo "  make sandbox-build       - Build/rebuild the agentize-sandbox image"
 	@echo "  make sandbox-run         - Run sandbox with volume passthrough (auto-builds if needed)"
 	@echo ""
