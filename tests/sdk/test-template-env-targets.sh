@@ -48,7 +48,7 @@ for lang in python c cxx; do
   fi
 
   # Check .PHONY includes new targets
-  if ! grep -q 'env' "$MAKEFILE" | head -1; then
+  if ! grep -q '^\.PHONY:.*env' "$MAKEFILE"; then
     echo "FAIL: $lang/Makefile .PHONY missing env"
     FAILED=1
   fi

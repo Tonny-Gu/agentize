@@ -86,7 +86,7 @@ help:
 	@echo "  make test-e2e            - Run end-to-end integration tests"
 	@echo "  make test-fast           - Run fast tests (sdk + cli + lint)"
 	@echo "  make setup               - Generate local setup.sh for development"
-	@echo "  make env                 - Print environment exports (use: eval $$(make env))"
+	@echo "  make env                 - Print environment exports (use: eval \$$(make env))"
 	@echo "  make sandbox-build       - Build/rebuild the agentize-sandbox image"
 	@echo "  make sandbox-run         - Run sandbox with volume passthrough (auto-builds if needed)"
 	@echo ""
