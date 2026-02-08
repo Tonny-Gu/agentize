@@ -80,6 +80,28 @@ These scripts delegate to `src/cli/lol.sh`:
   - Usage: `./scripts/detect-lang.sh <project_path>`
   - Exit codes: 0 (detected), 1 (unable to detect)
 
+### Mega-Planner Pipeline
+
+- `mega-planner.py` - Standalone 7-stage multi-agent debate pipeline
+  - Usage: `python scripts/mega-planner.py --feature-desc "..."`
+  - Modes:
+    - Default: `--feature-desc "..."` - Create new plan from description
+    - From-issue: `--from-issue 42` - Plan from existing issue body
+    - Refine: `--refine-issue 42 --feature-desc "focus on X"` - Refine existing plan
+    - Resolve: `--resolve-issue 42 --selections "1B,2A"` - Resolve disagreements
+  - Options:
+    - `--output-dir <path>` - Artifact output directory (default: `.tmp`)
+    - `--skip-consensus` - Run debate only, skip consensus synthesis
+    - `--issue-mode true|false` - Enable/disable GitHub issue creation
+    - `--verbose` - Enable verbose logging
+  - Pipeline stages: understander → (bold + paranoia) → (critique + proposal-reducer + code-reducer) → consensus
+  - Co-located prompts in `scripts/prompts/`
+  - Uses only `agentize.workflow.api` (Session DSL, ACW runner, prompt/path/gh utils)
+
+- `prompts/` - Co-located agent prompt files for mega-planner
+  - Verbatim copies from `.claude-plugin/agents/` and `.claude-plugin/skills/external-synthesize/`
+  - 7 files: understander, mega-bold-proposer, mega-paranoia-proposer, mega-proposal-critique, mega-proposal-reducer, mega-code-reducer, external-synthesize-prompt
+
 ### Makefile Utilities
 
 #### Parameter Validation
