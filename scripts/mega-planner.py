@@ -19,7 +19,7 @@ import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable
 
 # PYTHONPATH bootstrap: ensure python/ is importable
 _SCRIPT_DIR = Path(__file__).resolve().parent
@@ -174,8 +174,6 @@ This document combines five perspectives from the mega-planner dual-proposer deb
 3. **Critique**: Feasibility analysis of both proposals
 4. **Proposal Reducer**: Simplification of both proposals
 5. **Code Reducer**: Code footprint analysis
-6. **Previous Consensus Plan**: The plan being refined (if resolve/refine mode)
-7. **Selection & Refine History**: History table with current task in last row (if resolve/refine mode)
 
 ---
 
@@ -213,6 +211,7 @@ This document combines five perspectives from the mega-planner dual-proposer deb
 
 def _render_consensus_prompt(
     feature_name: str,
+    feature_desc: str,
     debate_report: str,
     dest_path: Path,
 ) -> str:
@@ -222,7 +221,7 @@ def _render_consensus_prompt(
         template_path,
         {
             "FEATURE_NAME": feature_name,
-            "FEATURE_DESCRIPTION": feature_name,
+            "FEATURE_DESCRIPTION": feature_desc,
             "COMBINED_REPORT": debate_report,
         },
         dest_path,
@@ -401,7 +400,7 @@ def run_mega_pipeline(
     debate_file.write_text(debate_report)
 
     def _write_consensus_prompt(path: Path) -> str:
-        return _render_consensus_prompt(feature_name, debate_report, path)
+        return _render_consensus_prompt(feature_name, feature_desc, debate_report, path)
 
     _log(f"Stage 7/7: Running consensus ({_backend_label('consensus')})")
     results["consensus"] = session.run_prompt(
@@ -536,8 +535,8 @@ def main(argv: list[str] | None = None) -> int:
     output_dir.mkdir(parents=True, exist_ok=True)
     issue_mode = args.issue_mode == "true"
 
-    issue_number: Optional[str] = None
-    issue_url: Optional[str] = None
+    issue_number: str | None = None
+    issue_url: str | None = None
     feature_desc = args.feature_desc
     report_paths = None
     consensus_path = None
@@ -647,7 +646,7 @@ def main(argv: list[str] | None = None) -> int:
             consensus_path=consensus_path,
             history_path=history_path,
         )
-    except Exception as exc:
+    except (FileNotFoundError, RuntimeError, subprocess.TimeoutExpired) as exc:
         _log(f"Error: {exc}")
         return 2
 
